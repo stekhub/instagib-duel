@@ -1,0 +1,934 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Instagib Duel</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --c0:#29d3ff; --c1:#ff5a2b; --bg:#070a14; --panel:rgba(10,14,28,.86); --line:rgba(120,160,255,.25); }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; overflow:hidden; background:var(--bg); color:#dfe8ff;
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; user-select:none; }
+  canvas#game { position:fixed; inset:0; width:100%; height:100%; display:block; }
+
+  /* ---------- HUD ---------- */
+  #hud { position:fixed; inset:0; pointer-events:none; display:none; }
+  #hud.on { display:block; }
+  #cross { position:absolute; left:50%; top:50%; width:22px; height:22px; transform:translate(-50%,-50%); }
+  #cross::before,#cross::after { content:""; position:absolute; background:#fff; opacity:.9; box-shadow:0 0 4px #000; }
+  #cross::before { left:10px; top:0; width:2px; height:22px; clip-path:polygon(0 0,100% 0,100% 32%,0 32%,0 68%,100% 68%,100% 100%,0 100%); }
+  #cross::after  { top:10px; left:0; height:2px; width:22px; clip-path:polygon(0 0,32% 0,32% 100%,0 100%,0 0,68% 0,100% 0,100% 100%,68% 100%,68% 0); }
+  #cool { position:absolute; left:50%; top:calc(50% + 26px); width:60px; height:3px; transform:translateX(-50%);
+    background:rgba(255,255,255,.15); border-radius:2px; overflow:hidden; }
+  #coolfill { height:100%; width:100%; background:#fff; }
+  #score { position:absolute; top:14px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:14px;
+    padding:8px 20px; background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    font-weight:700; letter-spacing:.12em; font-size:13px; }
+  #score .n { font-size:30px; font-variant-numeric:tabular-nums; letter-spacing:0; min-width:1.2em; text-align:center; }
+  #score .sep { opacity:.4; font-size:22px; }
+  #score .lim { position:absolute; left:50%; bottom:-18px; transform:translateX(-50%); font-size:10px; opacity:.55; white-space:nowrap; font-weight:500; }
+  #msg { position:absolute; left:50%; top:30%; transform:translateX(-50%); font-size:34px; font-weight:800; letter-spacing:.14em;
+    text-shadow:0 0 18px rgba(0,0,0,.9), 0 2px 0 #000; opacity:0; transition:opacity .25s; white-space:nowrap; text-align:center; }
+  #msg small { display:block; font-size:14px; font-weight:500; letter-spacing:.1em; opacity:.8; margin-top:6px; }
+  #info { position:absolute; right:14px; top:14px; font-size:12px; opacity:.7; text-align:right; font-variant-numeric:tabular-nums; }
+  #speed { position:absolute; left:50%; bottom:22px; transform:translateX(-50%); font-size:13px; letter-spacing:.1em; opacity:.75; font-variant-numeric:tabular-nums; }
+  #keys { position:absolute; left:14px; bottom:14px; font-size:11px; opacity:.5; line-height:1.6; }
+  #flash { position:absolute; inset:0; background:radial-gradient(ellipse at center, transparent 30%, rgba(255,40,40,.55)); opacity:0; transition:opacity .4s; }
+
+  /* ---------- overlays ---------- */
+  .overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at center, rgba(7,10,20,.55), rgba(7,10,20,.9)); }
+  .overlay.on { display:flex; }
+  .panel { width:min(460px, 92vw); padding:30px 30px 24px; background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; text-align:center; box-shadow:0 20px 80px rgba(0,0,0,.6); user-select:text; }
+  h1 { margin:0 0 4px; font-size:38px; letter-spacing:.16em; font-weight:900;
+    background:linear-gradient(90deg,var(--c0),#fff 50%,var(--c1)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  h2 { margin:0 0 6px; font-size:30px; letter-spacing:.14em; }
+  .sub { font-size:12px; letter-spacing:.2em; opacity:.6; margin-bottom:24px; text-transform:uppercase; }
+  button { font:inherit; font-weight:700; letter-spacing:.1em; color:#fff; background:rgba(60,90,200,.35);
+    border:1px solid rgba(140,170,255,.5); border-radius:8px; padding:12px 18px; cursor:pointer; width:100%; margin-top:10px; text-transform:uppercase; }
+  button:hover { background:rgba(80,120,255,.55); }
+  button.ghost { background:transparent; border-color:var(--line); font-weight:500; opacity:.8; }
+  button.small { width:auto; padding:8px 14px; font-size:12px; margin:0; }
+  input[type=text] { font:inherit; font-size:26px; letter-spacing:.3em; text-align:center; text-transform:uppercase; width:100%;
+    padding:12px; color:#fff; background:rgba(0,0,0,.4); border:1px solid var(--line); border-radius:8px; outline:none; }
+  input[type=text]:focus { border-color:var(--c0); }
+  .code { font-size:44px; font-weight:800; letter-spacing:.3em; margin:10px 0 6px; padding-left:.3em; color:var(--c0);
+    font-family:Consolas, "SF Mono", monospace; min-height:58px; }
+  .row { display:flex; gap:8px; justify-content:center; margin-bottom:8px; }
+  .status { min-height:20px; margin-top:16px; font-size:13px; opacity:.85; }
+  .status.err { color:#ff8a70; }
+  .hint { font-size:12px; opacity:.6; line-height:1.6; margin-top:14px; }
+  .view { display:none; } .view.on { display:block; }
+  label.sl { display:flex; align-items:center; gap:10px; font-size:12px; opacity:.8; margin-top:14px; justify-content:center; }
+  label.sl input { flex:1; max-width:220px; }
+  kbd { border:1px solid var(--line); border-radius:4px; padding:1px 6px; font-family:inherit; font-size:11px; }
+</style>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div id="flash"></div>
+  <div id="cross"></div>
+  <div id="cool"><div id="coolfill"></div></div>
+  <div id="score">
+    <span id="lblMe">YOU</span><span class="n" id="scMe">0</span>
+    <span class="sep">:</span>
+    <span class="n" id="scOp">0</span><span id="lblOp">ENEMY</span>
+    <span class="lim">FIRST TO 10</span>
+  </div>
+  <div id="msg"></div>
+  <div id="info"></div>
+  <div id="speed"></div>
+  <div id="softNote" style="display:none;position:absolute;left:50%;top:84px;transform:translateX(-50%);font-size:12px;padding:6px 12px;border-radius:6px;background:rgba(10,14,28,.86);border:1px solid rgba(255,170,80,.5);color:#ffc890;white-space:nowrap">Limited mouse mode: this browser blocks mouse capture. Hold the cursor at a screen edge to keep turning · ESC for menu</div>
+  <div id="keys">WASD / arrows move · R-CTRL or SPACE jump · double-tap a direction to dodge · LMB fire · ESC menu</div>
+</div>
+
+<!-- main menu -->
+<div class="overlay on" id="menu">
+  <div class="panel">
+    <h1>INSTAGIB DUEL</h1>
+    <div class="sub">one beam · one hit · first to 10</div>
+
+    <div class="view on" id="vMain">
+      <button id="bHost">Host a duel</button>
+      <button id="bJoin">Join with a code</button>
+      <button id="bPractice" class="ghost">Practice (offline target)</button>
+    </div>
+
+    <div class="view" id="vHost">
+      <div class="hint" style="margin-top:0">Send this code to your opponent</div>
+      <div class="code" id="code">······</div>
+      <div class="row">
+        <button class="small" id="bCopy">Copy code</button>
+        <button class="small" id="bCopyLink">Copy invite link</button>
+      </div>
+      <button class="ghost" data-back>Back</button>
+    </div>
+
+    <div class="view" id="vJoin">
+      <input type="text" id="inCode" maxlength="6" placeholder="CODE" autocomplete="off" spellcheck="false">
+      <button id="bConnect">Connect</button>
+      <button class="ghost" data-back>Back</button>
+    </div>
+
+    <div class="status" id="status"></div>
+  </div>
+</div>
+
+<!-- click to play / pause -->
+<div class="overlay" id="pause">
+  <div class="panel">
+    <h2 id="pauseTitle">CLICK TO PLAY</h2>
+    <div class="hint">
+      <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys move &nbsp; <kbd>R-Ctrl</kbd> / <kbd>Space</kbd> jump &nbsp; <kbd>LMB</kbd> fire<br>
+      Double-tap a direction to dodge. Green pads launch you.<br>With WASD use Space to jump: Ctrl+W closes the browser tab.
+    </div>
+    <label class="sl">Mouse sensitivity <input type="range" id="sens" min="0.3" max="4" step="0.05"> <span id="sensV"></span></label>
+    <button id="bResume">Enter arena</button>
+    <button class="ghost" id="bQuit">Quit to menu</button>
+  </div>
+</div>
+
+<!-- match over -->
+<div class="overlay" id="over">
+  <div class="panel">
+    <h2 id="overTitle">VICTORY</h2>
+    <div class="code" id="overScore" style="color:#fff">10 : 0</div>
+    <div class="status" id="overStatus"></div>
+    <button id="bRematch">Rematch</button>
+    <button class="ghost" id="bOverQuit">Quit to menu</button>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* =====================================================================
+   Config
+   ===================================================================== */
+const FRAG_LIMIT = 10;
+const RESPAWN_TIME = 1.8;
+const FIRE_COOLDOWN = 0.9;
+const NET_RATE = 1 / 30;
+const INTERP_DELAY = 90;            // ms of interpolation buffer for the remote player
+const PEER_PREFIX = 'instagib-duel-v1-';
+const COLORS = [0x29d3ff, 0xff5a2b]; // host, guest
+const CSS_COLORS = ['#29d3ff', '#ff5a2b'];
+
+const HALF = 0.4, HEIGHT = 1.8, EYE = 1.62, EPS = 1e-4;
+const MOVE = {
+  speed: 10, accel: 10, airAccel: 1, friction: 6, stopSpeed: 3,
+  jump: 8.6, jumpDelay: 0.2, gravity: 25, maxSpeed: 24, dodgeSpeed: 15, dodgeUp: 5.2, dodgeCooldown: 0.5,
+};
+
+const $ = id => document.getElementById(id);
+
+/* =====================================================================
+   Renderer / scene
+   ===================================================================== */
+const canvas = $('game');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x070a14);
+scene.fog = new THREE.Fog(0x070a14, 45, 150);
+const camera = new THREE.PerspectiveCamera(78, 1, 0.05, 400);   // vertical FOV (~108° horizontal at 16:9)
+camera.rotation.order = 'YXZ';
+scene.add(camera);
+
+function resize() {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+scene.add(new THREE.HemisphereLight(0x9fb4ff, 0x141428, 1.5));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+sun.position.set(12, 30, 6); scene.add(sun);
+
+// stars
+{
+  const n = 700, pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const u = Math.random() * 2 - 1, a = Math.random() * Math.PI * 2, r = Math.sqrt(1 - u * u);
+    pos[i * 3] = r * Math.cos(a) * 200; pos[i * 3 + 1] = Math.abs(u) * 200 + 5; pos[i * 3 + 2] = r * Math.sin(a) * 200;
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xaac4ff, size: 0.9, fog: false })));
+}
+
+/* =====================================================================
+   Arena (all collision is axis-aligned boxes)
+   ===================================================================== */
+const solids = [];   // { min:[x,y,z], max:[x,y,z] }
+const pads = [];     // { x, z, r, power, mesh }
+
+function gridTexture(bg, line, rep) {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = bg; g.fillRect(0, 0, 128, 128);
+  g.strokeStyle = line; g.lineWidth = 3; g.strokeRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep, rep);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return t;
+}
+
+function addBox(x0, y0, z0, x1, y1, z1, { color = 0x1b2240, edge = 0x4a66ff, map = null, solid = true } = {}) {
+  const geo = new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0);
+  const mat = new THREE.MeshStandardMaterial({ color, map, roughness: 0.75, metalness: 0.15 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+  scene.add(mesh);
+  if (edge !== null) {
+    const lines = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: edge }));
+    lines.position.copy(mesh.position); scene.add(lines);
+  }
+  if (solid) solids.push({ min: [x0, y0, z0], max: [x1, y1, z1] });
+  return mesh;
+}
+
+function addGlow(x0, y0, z0, x1, y1, z1, color) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), new THREE.MeshBasicMaterial({ color }));
+  m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); scene.add(m);
+}
+
+function addPad(x, z, power) {
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.35, 0.12, 24), new THREE.MeshBasicMaterial({ color: 0x39ff88 }));
+  mesh.position.set(x, 0.06, z); scene.add(mesh);
+  const l = new THREE.PointLight(0x39ff88, 30, 12, 2); l.position.set(x, 1.5, z); scene.add(l);
+  pads.push({ x, z, r: 1.2, power, mesh });
+}
+
+const A = 24, WALL_H = 12;
+// floor + walls
+addBox(-A, -1, -A, A, 0, A, { color: 0xffffff, map: gridTexture('#10152b', '#2b3a78', 24), edge: null });
+addBox(-A - 1, 0, -A - 1, A + 1, WALL_H, -A, { color: 0x121831 });
+addBox(-A - 1, 0, A, A + 1, WALL_H, A + 1, { color: 0x121831 });
+addBox(-A - 1, 0, -A, -A, WALL_H, A, { color: 0x121831 });
+addBox(A, 0, -A, A + 1, WALL_H, A, { color: 0x121831 });
+// wall trim (decor only)
+for (const y of [5, 9]) {
+  const c = y === 5 ? 0x3355ff : 0x8833ff;
+  addGlow(-A, y, -A, A, y + 0.12, -A + 0.06, c); addGlow(-A, y, A - 0.06, A, y + 0.12, A, c);
+  addGlow(-A, y, -A, -A + 0.06, y + 0.12, A, c); addGlow(A - 0.06, y, -A, A, y + 0.12, A, c);
+}
+// centre block with steps on both sides
+addBox(-4, 0, -4, 4, 3, 4, { color: 0x232b52, edge: 0x7f95ff });
+for (const s of [1, -1]) {
+  addBox(Math.min(s * 4, s * 6), 0, -2, Math.max(s * 4, s * 6), 2.4, 2, { color: 0x1e2648 });
+  addBox(Math.min(s * 6, s * 8), 0, -2, Math.max(s * 6, s * 8), 1.2, 2, { color: 0x1e2648 });
+}
+// pillars
+for (const sx of [1, -1]) for (const sz of [1, -1])
+  addBox(sx * 12 - 1.5, 0, sz * 12 - 1.5, sx * 12 + 1.5, 7, sz * 12 + 1.5, { color: 0x2a2350, edge: 0xb070ff });
+// side ledges (walk underneath, reach via pads)
+for (const s of [1, -1])
+  addBox(Math.min(s * 19.5, s * 24), 3.6, -10, Math.max(s * 19.5, s * 24), 4, 10, { color: 0x1f3050, edge: 0x4fd0ff });
+// low cover + crates
+addBox(-3, 0, 14, 3, 1.4, 15, { color: 0x2b2238, edge: 0xff7a4a });
+addBox(-3, 0, -15, 3, 1.4, -14, { color: 0x2b2238, edge: 0xff7a4a });
+addBox(9, 0, -19, 11, 1.2, -17, { color: 0x2b2238, edge: 0xff7a4a });
+addBox(-11, 0, 17, -9, 1.2, 19, { color: 0x2b2238, edge: 0xff7a4a });
+// jump pads
+addPad(0, 7, 13.5); addPad(0, -7, 13.5); addPad(17, 0, 16.5); addPad(-17, 0, 16.5);
+
+const SPAWNS = [[-20, -20], [20, 20], [-20, 20], [20, -20], [0, -21], [0, 21]];
+
+/* =====================================================================
+   Audio (tiny synth, no assets)
+   ===================================================================== */
+let ac = null;
+function audioInit() { if (!ac) { try { ac = new AudioContext(); } catch { } } if (ac && ac.state === 'suspended') ac.resume(); }
+function tone(type, f0, f1, dur, vol) {
+  if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
+  o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+const sfx = {
+  shoot: (v = 1) => { tone('sawtooth', 1400, 90, 0.28, 0.16 * v); tone('square', 2400, 300, 0.12, 0.06 * v); },
+  frag: () => { tone('triangle', 660, 660, 0.09, 0.2); setTimeout(() => tone('triangle', 990, 990, 0.18, 0.2), 90); },
+  death: () => { tone('sawtooth', 220, 40, 0.5, 0.25); },
+  jump: () => tone('sine', 220, 330, 0.08, 0.05),
+  pad: () => tone('sine', 200, 900, 0.3, 0.15),
+  dodge: () => tone('triangle', 500, 200, 0.12, 0.08),
+  win: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone('triangle', f, f, 0.25, 0.2), i * 130)),
+  lose: () => [392, 330, 262, 196].forEach((f, i) => setTimeout(() => tone('sawtooth', f, f, 0.3, 0.12), i * 160)),
+};
+
+/* =====================================================================
+   Game state
+   ===================================================================== */
+let state = 'menu';            // menu | playing | over
+let mode = null;               // 'host' | 'guest' | 'practice'
+let myIdx = 0, opIdx = 1;
+let scores = [0, 0];
+let alive = [true, true];
+let cooldown = 0;
+let respawnAt = 0;             // performance.now() timestamp for local respawn
+let ping = null;
+const isAuthority = () => mode === 'host' || mode === 'practice';
+
+const me = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: 0, pitch: 0, onGround: false, dodgeCd: 0, jumpCd: 0 };
+const remote = { pos: new THREE.Vector3(0, -50, 0), yaw: 0, pitch: 0, seen: false };
+let snaps = [];                // remote snapshots {t, p:[x,y,z], y, x}
+
+/* =====================================================================
+   Player models, viewmodel, effects
+   ===================================================================== */
+function makeGun(color) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.11, 0.5), new THREE.MeshStandardMaterial({ color: 0x2a2f45, roughness: 0.4, metalness: 0.7 }));
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.34, 10), new THREE.MeshBasicMaterial({ color }));
+  barrel.rotation.x = Math.PI / 2; barrel.position.set(0, 0.015, -0.36);
+  const coil = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.04, 0.16), new THREE.MeshBasicMaterial({ color }));
+  coil.position.set(0, 0.07, 0.05);
+  g.add(body, barrel, coil);
+  return g;
+}
+
+const remoteModel = new THREE.Group();
+let remoteHeadPivot, remoteMats = [];
+function buildRemoteModel(color) {
+  remoteModel.clear(); remoteMats = [];
+  const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.55, roughness: 0.5 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1a1d2c, roughness: 0.6, metalness: 0.4 });
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.75, 6, 14), mat); body.position.y = 0.72;
+  const chest = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.36, 0.42), dark); chest.position.y = 1.1;
+  remoteHeadPivot = new THREE.Group(); remoteHeadPivot.position.y = 1.58;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), mat);
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 0.14), new THREE.MeshBasicMaterial({ color: 0xffffff })); visor.position.set(0, 0.02, -0.14);
+  const gun = makeGun(color); gun.position.set(0.3, -0.22, -0.3);
+  remoteHeadPivot.add(head, visor, gun);
+  remoteModel.add(body, chest, remoteHeadPivot);
+}
+remoteModel.visible = false; scene.add(remoteModel);
+
+let viewGun = null;
+function buildViewGun(color) {
+  if (viewGun) camera.remove(viewGun);
+  viewGun = makeGun(color); viewGun.position.set(0.2, -0.2, -0.45); viewGun.scale.setScalar(0.6); viewGun.visible = false;
+  camera.add(viewGun);
+}
+buildViewGun(COLORS[0]);
+
+const effects = [];   // { life, max, tick(k, dt), dispose() }
+const beamGeo = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true); beamGeo.rotateX(Math.PI / 2);
+const sphereGeo = new THREE.SphereGeometry(1, 12, 8);
+const gibGeo = new THREE.BoxGeometry(0.16, 0.16, 0.16);
+
+function spawnBeam(a, b, color) {
+  const len = a.distanceTo(b); if (len < 0.01) return;
+  const mk = (c, op) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  const mats = [mk(color, 0.7), mk(0xffffff, 1), mk(color, 0.9)];
+  const outer = new THREE.Mesh(beamGeo, mats[0]), core = new THREE.Mesh(beamGeo, mats[1]), flash = new THREE.Mesh(sphereGeo, mats[2]);
+  for (const m of [outer, core]) { m.position.copy(a).lerp(b, 0.5); m.lookAt(b); }
+  flash.position.copy(b);
+  scene.add(outer, core, flash);
+  effects.push({
+    life: 0.55, max: 0.55,
+    tick(k) {
+      outer.scale.set(0.05 + (1 - k) * 0.1, 0.05 + (1 - k) * 0.1, len); core.scale.set(0.018 * k, 0.018 * k, len);
+      const s = 0.15 + (1 - k) * 0.5; flash.scale.set(s, s, s);
+      mats[0].opacity = 0.7 * k * k; mats[1].opacity = k; mats[2].opacity = 0.9 * k * k;
+    },
+    dispose() { scene.remove(outer, core, flash); mats.forEach(m => m.dispose()); },
+  });
+}
+
+function spawnGibs(pos, color) {
+  const mat = new THREE.MeshBasicMaterial({ color, transparent: true });
+  const parts = [];
+  for (let i = 0; i < 22; i++) {
+    const m = new THREE.Mesh(gibGeo, mat);
+    m.position.set(pos.x + (Math.random() - .5) * .5, pos.y + 0.3 + Math.random() * 1.3, pos.z + (Math.random() - .5) * .5);
+    const s = 0.6 + Math.random() * 1.2; m.scale.setScalar(s);
+    const v = new THREE.Vector3((Math.random() - .5) * 12, 3 + Math.random() * 8, (Math.random() - .5) * 12);
+    const spin = new THREE.Vector3(Math.random() * 10, Math.random() * 10, Math.random() * 10);
+    parts.push({ m, v, spin }); scene.add(m);
+  }
+  effects.push({
+    life: 2.2, max: 2.2,
+    tick(k, dt) {
+      for (const p of parts) {
+        p.v.y -= 22 * dt; p.m.position.addScaledVector(p.v, dt);
+        if (p.m.position.y < 0.08) { p.m.position.y = 0.08; p.v.y *= -0.4; p.v.x *= 0.7; p.v.z *= 0.7; }
+        p.m.rotation.x += p.spin.x * dt; p.m.rotation.y += p.spin.y * dt;
+      }
+      mat.opacity = Math.min(1, k * 2.5);
+    },
+    dispose() { parts.forEach(p => scene.remove(p.m)); mat.dispose(); },
+  });
+}
+
+/* =====================================================================
+   Input
+   ===================================================================== */
+const keys = {};
+let firing = false, pendingDodge = null, jumpPressed = false;
+// arrow keys mirror WASD, right ctrl mirrors space
+const KEY_ALIAS = { ArrowUp: 'KeyW', ArrowDown: 'KeyS', ArrowLeft: 'KeyA', ArrowRight: 'KeyD', ControlRight: 'Space' };
+const lastTap = {};
+let sens = parseFloat(localStorage.getItem('igd-sens') || '1');
+const locked = () => document.pointerLockElement === canvas;
+// Some embedded browsers refuse pointer lock. Fall back to a "soft capture": relative mouse
+// movement still steers, and holding the cursor at a screen edge keeps turning.
+let softCapture = false;
+const mouse = { x: 0.5, y: 0.5 };
+const captured = () => locked() || softCapture;
+function setSoftCapture(on) {
+  softCapture = on; canvas.style.cursor = on ? 'none' : '';
+  if (!on) { for (const k in keys) keys[k] = false; firing = false; }
+  updateOverlays();
+}
+function releaseMouse() { if (locked()) document.exitPointerLock(); if (softCapture) setSoftCapture(false); }
+
+addEventListener('keydown', e => {
+  if (softCapture && e.code === 'Escape') { setSoftCapture(false); return; }
+  if (!captured()) return;
+  const code = KEY_ALIAS[e.code] || e.code;
+  // stop ctrl+S / ctrl+D / ctrl+A and arrow scrolling (browsers do not let pages block ctrl+W)
+  if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space'].includes(code) || e.ctrlKey) e.preventDefault();
+  if (!e.repeat && code !== 'Space' && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(code)) {
+    const now = performance.now();
+    if (now - (lastTap[code] || 0) < 250) { pendingDodge = code; lastTap[code] = 0; }
+    else lastTap[code] = now;
+  }
+  if (!e.repeat && code === 'Space') jumpPressed = true;   // one jump per press, no hold-to-hop
+  keys[code] = true;
+});
+addEventListener('keyup', e => { keys[KEY_ALIAS[e.code] || e.code] = false; });
+addEventListener('mousemove', e => {
+  mouse.x = e.clientX / innerWidth; mouse.y = e.clientY / innerHeight;
+  if (!captured()) return;
+  me.yaw -= e.movementX * 0.0022 * sens;
+  me.pitch = Math.max(-1.55, Math.min(1.55, me.pitch - e.movementY * 0.0022 * sens));
+});
+canvas.addEventListener('mousedown', e => { if (e.button === 0 && captured()) firing = true; });
+addEventListener('mouseup', e => { if (e.button === 0) firing = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; firing = false; if (softCapture) setSoftCapture(false); });
+document.addEventListener('pointerlockchange', () => {
+  if (!locked()) { for (const k in keys) keys[k] = false; firing = false; }
+  updateOverlays();
+});
+function lockPointer() {
+  audioInit();
+  if (!canvas.requestPointerLock) return setSoftCapture(true);
+  try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(e => {
+      // only fall back when the browser can never lock here (not for the brief re-lock cooldown after ESC)
+      if (state === 'playing' && !locked() && e && (e.name === 'WrongDocumentError' || e.name === 'NotSupportedError')) setSoftCapture(true);
+    }); }
+  catch { setSoftCapture(true); }
+}
+
+/* =====================================================================
+   Movement + collision (Quake-style accel => strafe jumping works)
+   ===================================================================== */
+function overlaps(p, b) {
+  return p.x + HALF > b.min[0] && p.x - HALF < b.max[0] &&
+         p.y + HEIGHT > b.min[1] && p.y < b.max[1] &&
+         p.z + HALF > b.min[2] && p.z - HALF < b.max[2];
+}
+function moveAxis(ax, d) {
+  if (d === 0) return false;
+  const p = me.pos; p.setComponent(ax, p.getComponent(ax) + d);
+  let hit = false;
+  for (const b of solids) {
+    if (!overlaps(p, b)) continue;
+    hit = true;
+    if (ax === 1) p.y = d > 0 ? b.min[1] - HEIGHT - EPS : b.max[1] + EPS;
+    else p.setComponent(ax, d > 0 ? b.min[ax] - HALF - EPS : b.max[ax] + HALF + EPS);
+  }
+  return hit;
+}
+function accelerate(wx, wz, wishSpeed, accel, dt) {
+  const v = me.vel, cur = v.x * wx + v.z * wz, add = wishSpeed - cur;
+  if (add <= 0) return;
+  const a = Math.min(accel * dt * wishSpeed, add);
+  v.x += a * wx; v.z += a * wz;
+}
+const DODGE_DIR = { KeyW: [1, 0], KeyS: [-1, 0], KeyD: [0, 1], KeyA: [0, -1] };
+
+function physStep(dt) {
+  const v = me.vel;
+  const f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0), s = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+  const sy = Math.sin(me.yaw), cy = Math.cos(me.yaw);
+  let wx = -sy * f + cy * s, wz = -cy * f - sy * s;
+  const wl = Math.hypot(wx, wz); if (wl > 0) { wx /= wl; wz /= wl; }
+  me.dodgeCd -= dt; me.jumpCd -= dt;
+
+  if (me.onGround) {
+    const pad = me.pos.y < 0.1 && pads.find(p => Math.abs(me.pos.x - p.x) < p.r && Math.abs(me.pos.z - p.z) < p.r);
+    if (pad) { v.y = pad.power; me.onGround = false; sfx.pad(); }
+    else if (pendingDodge && me.dodgeCd <= 0) {
+      const [df, ds] = DODGE_DIR[pendingDodge];
+      v.x = (-sy * df + cy * ds) * MOVE.dodgeSpeed; v.z = (-cy * df - sy * ds) * MOVE.dodgeSpeed;
+      v.y = MOVE.dodgeUp; me.onGround = false; me.dodgeCd = MOVE.dodgeCooldown; sfx.dodge();
+    }
+    else if (jumpPressed && me.jumpCd <= 0) { v.y = MOVE.jump; me.onGround = false; sfx.jump(); }
+    else {
+      const sp = Math.hypot(v.x, v.z);
+      if (sp < 0.05) { v.x = v.z = 0; }
+      else { const k = Math.max(0, sp - Math.max(sp, MOVE.stopSpeed) * MOVE.friction * dt) / sp; v.x *= k; v.z *= k; }
+    }
+  }
+  pendingDodge = null; jumpPressed = false;
+  if (wl > 0) accelerate(wx, wz, MOVE.speed, me.onGround ? MOVE.accel : MOVE.airAccel, dt);
+  v.y -= MOVE.gravity * dt;
+  const hs = Math.hypot(v.x, v.z);
+  if (hs > MOVE.maxSpeed) { v.x *= MOVE.maxSpeed / hs; v.z *= MOVE.maxSpeed / hs; }
+
+  if (moveAxis(0, v.x * dt)) v.x = 0;
+  if (moveAxis(2, v.z * dt)) v.z = 0;
+  const goingDown = v.y < 0, wasOnGround = me.onGround;
+  me.onGround = false;
+  if (moveAxis(1, v.y * dt)) { if (goingDown) me.onGround = true; v.y = 0; }
+  if (me.onGround && !wasOnGround) me.jumpCd = MOVE.jumpDelay;   // short wait after landing before the next jump
+  if (me.pos.y < -20) placeAtSpawn(0);   // safety net, should never happen
+}
+
+/* =====================================================================
+   Shooting (hitscan)
+   ===================================================================== */
+function rayBox(o, d, min, max) {
+  let t0 = 0, t1 = Infinity;
+  for (let i = 0; i < 3; i++) {
+    const oi = o.getComponent(i), di = d.getComponent(i);
+    if (Math.abs(di) < 1e-9) { if (oi < min[i] || oi > max[i]) return Infinity; continue; }
+    let a = (min[i] - oi) / di, b = (max[i] - oi) / di;
+    if (a > b) { const t = a; a = b; b = t; }
+    if (a > t0) t0 = a; if (b < t1) t1 = b;
+    if (t0 > t1) return Infinity;
+  }
+  return t0;
+}
+const _o = new THREE.Vector3(), _d = new THREE.Vector3(), _end = new THREE.Vector3(), _muz = new THREE.Vector3();
+let recoil = 0;
+
+function tryFire() {
+  if (state !== 'playing' || !alive[myIdx] || cooldown > 0) return;
+  cooldown = FIRE_COOLDOWN;
+  camera.updateMatrixWorld(true);
+  camera.getWorldPosition(_o); camera.getWorldDirection(_d);
+  let t = 300, hit = false;
+  for (const b of solids) { const tb = rayBox(_o, _d, b.min, b.max); if (tb < t) t = tb; }
+  if (alive[opIdx] && remote.seen) {
+    const p = remote.pos;
+    const tp = rayBox(_o, _d, [p.x - 0.45, p.y, p.z - 0.45], [p.x + 0.45, p.y + 1.85, p.z + 0.45]);
+    if (tp < t) { t = tp; hit = true; }
+  }
+  _end.copy(_o).addScaledVector(_d, t);
+  _muz.set(0, 0.015, -0.55); viewGun.localToWorld(_muz);
+  spawnBeam(_muz, _end, COLORS[myIdx]); sfx.shoot(); recoil = 1;
+  send({ t: 'fire', o: _muz.toArray(), e: _end.toArray(), hit });
+  if (hit && isAuthority()) registerKill(myIdx);
+}
+
+/* =====================================================================
+   Match flow. Host (or practice) is the authority on kills + score.
+   ===================================================================== */
+function registerKill(killer) {
+  const victim = 1 - killer;
+  if (state !== 'playing' || !alive[killer] || !alive[victim]) return;
+  scores[killer]++;
+  send({ t: 'kill', k: killer, sc: scores });
+  applyKill(killer);
+  if (scores[killer] >= FRAG_LIMIT) { send({ t: 'over', w: killer }); endMatch(killer); }
+}
+
+function applyKill(killer) {
+  const victim = 1 - killer;
+  alive[victim] = false;
+  if (victim === myIdx) {
+    spawnGibs(me.pos, COLORS[myIdx]); sfx.death();
+    respawnAt = performance.now() + RESPAWN_TIME * 1000;
+    me.vel.set(0, 0, 0);
+    $('flash').style.opacity = 1;
+    showMsg('FRAGGED', 'respawning…', RESPAWN_TIME * 1000);
+  } else {
+    spawnGibs(remote.pos, COLORS[opIdx]); sfx.frag();
+    if (mode === 'practice') bot.respawn = RESPAWN_TIME;
+    showMsg('FRAG!', scores[killer] === FRAG_LIMIT - 1 ? 'one more to win' : '', 900);
+  }
+  updateScore();
+}
+
+function farthestSpawn() {
+  let best = 0, bd = -1;
+  SPAWNS.forEach(([x, z], i) => { const d = (x - remote.pos.x) ** 2 + (z - remote.pos.z) ** 2; if (d > bd) { bd = d; best = i; } });
+  return best;
+}
+function placeAtSpawn(i) {
+  const [x, z] = SPAWNS[i];
+  me.pos.set(x, 0.01, z); me.vel.set(0, 0, 0); me.onGround = false; me.jumpCd = 0;
+  me.yaw = Math.atan2(x, z); me.pitch = 0;
+}
+function respawnLocal() {
+  placeAtSpawn(remote.seen ? farthestSpawn() : myIdx);
+  alive[myIdx] = true; cooldown = 0.3;
+  $('flash').style.opacity = 0;
+  send({ t: 'spawn', p: me.pos.toArray() });
+}
+
+function startMatch() {
+  state = 'playing';
+  scores = [0, 0]; alive = [true, true]; cooldown = 0.5; snaps = [];
+  remote.seen = false; remote.pos.set(0, -50, 0);
+  buildRemoteModel(COLORS[opIdx]); buildViewGun(COLORS[myIdx]);
+  placeAtSpawn(myIdx);
+  $('flash').style.opacity = 0;
+  $('lblMe').style.color = $('scMe').style.color = CSS_COLORS[myIdx];
+  $('lblOp').style.color = $('scOp').style.color = CSS_COLORS[opIdx];
+  $('lblOp').textContent = mode === 'practice' ? 'TARGET' : 'ENEMY';
+  if (mode === 'practice') { bot.ang = Math.random() * 6.28; bot.respawn = 0; bot.y = 0; bot.vy = 0; }
+  updateScore(); updateOverlays();
+  showMsg('FIGHT!', 'first to ' + FRAG_LIMIT + ' frags', 1500);
+}
+
+function endMatch(winner) {
+  if (state !== 'playing') return;
+  state = 'over';
+  const won = winner === myIdx;
+  $('overTitle').textContent = won ? 'VICTORY' : 'DEFEAT';
+  $('overTitle').style.color = won ? '#7dffb0' : '#ff8a70';
+  $('overScore').textContent = scores[myIdx] + ' : ' + scores[opIdx];
+  $('overStatus').textContent = '';
+  $('bRematch').textContent = mode === 'practice' ? 'Play again' : 'Rematch';
+  (won ? sfx.win : sfx.lose)();
+  releaseMouse();
+  updateOverlays();
+}
+
+function quitToMenu(statusText = '', isErr = false) {
+  closeNet();
+  state = 'menu'; mode = null;
+  remoteModel.visible = false;
+  releaseMouse();
+  showView('vMain'); setStatus(statusText, isErr);
+  updateOverlays();
+}
+
+/* =====================================================================
+   Practice target (orbits the centre, hops, never shoots)
+   ===================================================================== */
+const bot = { ang: 0, dir: 1, y: 0, vy: 0, respawn: 0, flip: 2 };
+function updateBot(dt) {
+  if (!alive[1]) {
+    bot.respawn -= dt;
+    if (bot.respawn <= 0) { alive[1] = true; bot.ang = Math.random() * 6.28; bot.y = 0; bot.vy = 0; }
+    return;
+  }
+  bot.flip -= dt;
+  if (bot.flip <= 0) { bot.dir = Math.random() < 0.5 ? 1 : -1; bot.flip = 0.6 + Math.random() * 2; if (Math.random() < 0.5 && bot.y === 0) bot.vy = 8; }
+  bot.ang += bot.dir * (7.5 / 10.5) * dt;
+  bot.vy -= 25 * dt; bot.y = Math.max(0, bot.y + bot.vy * dt); if (bot.y === 0) bot.vy = 0;
+  remote.pos.set(Math.cos(bot.ang) * 10.5, bot.y, Math.sin(bot.ang) * 10.5);
+  remote.yaw = Math.atan2(remote.pos.x - me.pos.x, remote.pos.z - me.pos.z);
+  remote.pitch = 0; remote.seen = true;
+}
+
+/* =====================================================================
+   Networking (PeerJS / WebRTC data channel)
+   ===================================================================== */
+let peer = null, conn = null, pingTimer = null, joinTimer = null, lastHeard = 0;
+const PEER_TIMEOUT = 8000;   // a crashed or unplugged peer never says goodbye, so watch for silence
+
+function send(m) { if (conn && conn.open) { try { conn.send(m); } catch { } } }
+const vec3 = a => Array.isArray(a) && a.length === 3 && a.every(Number.isFinite) ? a : null;
+
+function closeNet() {
+  clearInterval(pingTimer); clearTimeout(joinTimer);
+  const p = peer; peer = null; conn = null; ping = null;
+  if (p) { try { p.destroy(); } catch { } }
+}
+
+function makeCode() {
+  const abc = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  return Array.from(crypto.getRandomValues(new Uint8Array(6)), b => abc[b % abc.length]).join('');
+}
+
+function hostGame() {
+  closeNet(); audioInit();
+  mode = 'host'; myIdx = 0; opIdx = 1;
+  const code = makeCode();
+  showView('vHost'); $('code').textContent = '······'; setStatus('Contacting matchmaking server…');
+  const p = peer = new Peer(PEER_PREFIX + code);
+  p.on('open', () => { if (peer !== p) return; $('code').textContent = code; setStatus('Waiting for opponent to connect…'); });
+  p.on('connection', c => {
+    if (peer !== p) return;
+    if (conn) { c.on('open', () => c.close()); return; }   // duel is full
+    setupConn(c);
+  });
+  p.on('error', err => {
+    if (peer !== p) return;
+    if (err.type === 'unavailable-id') return hostGame();   // code collision, roll a new one
+    if (state === 'menu') setStatus('Network error: ' + (err.type || err.message), true);
+  });
+  p.on('disconnected', () => { if (peer === p && !conn && !p.destroyed) p.reconnect(); });
+}
+
+function joinGame(code) {
+  code = (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (code.length !== 6) return setStatus('Enter the 6-character code.', true);
+  closeNet(); audioInit();
+  mode = 'guest'; myIdx = 1; opIdx = 0;
+  setStatus('Contacting matchmaking server…');
+  const p = peer = new Peer();
+  p.on('open', () => {
+    if (peer !== p) return;
+    setStatus('Connecting to host (punching through NAT)…');
+    setupConn(p.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' }));
+    joinTimer = setTimeout(() => {
+      if (peer === p && state === 'menu') setStatus('Still trying… a direct connection may be blocked by one of your routers (strict NAT / firewall).', true);
+    }, 12000);
+  });
+  p.on('error', err => {
+    if (peer !== p) return;
+    if (err.type === 'peer-unavailable') { closeNet(); return setStatus('No game found with code ' + code + '.', true); }
+    if (state === 'menu') setStatus('Network error: ' + (err.type || err.message), true);
+  });
+}
+
+function setupConn(c) {
+  conn = c;
+  c.on('open', () => {
+    if (conn !== c) return;
+    clearTimeout(joinTimer);
+    clearInterval(pingTimer);
+    lastHeard = performance.now();
+    pingTimer = setInterval(() => {
+      if (performance.now() - lastHeard > PEER_TIMEOUT) return quitToMenu('Lost connection to opponent.', true);
+      send({ t: 'ping', ts: performance.now() });
+    }, 1000);
+    if (mode === 'host') { send({ t: 'start' }); startMatch(); }
+    else setStatus('Connected. Waiting for host…');
+  });
+  c.on('data', m => { if (conn === c) onMsg(m); });
+  c.on('close', () => { if (conn === c) quitToMenu('Opponent disconnected.', true); });
+  c.on('error', () => { if (conn === c) quitToMenu('Connection lost.', true); });
+}
+
+function onMsg(m) {
+  if (!m || typeof m !== 'object') return;
+  lastHeard = performance.now();
+  switch (m.t) {
+    case 's': {
+      const p = vec3(m.p); if (!p || !Number.isFinite(m.y) || !Number.isFinite(m.x)) return;
+      snaps.push({ t: performance.now(), p, y: m.y, x: m.x });
+      if (snaps.length > 40) snaps.shift();
+      break;
+    }
+    case 'fire': {
+      const o = vec3(m.o), e = vec3(m.e); if (!o || !e) return;
+      spawnBeam(new THREE.Vector3(...o), new THREE.Vector3(...e), COLORS[opIdx]); sfx.shoot(0.6);
+      if (mode === 'host' && m.hit === true) registerKill(opIdx);
+      break;
+    }
+    case 'kill':
+      if (mode !== 'guest' || state !== 'playing' || (m.k !== 0 && m.k !== 1)) return;
+      if (Array.isArray(m.sc) && m.sc.length === 2 && m.sc.every(Number.isInteger)) scores = m.sc.slice();
+      applyKill(m.k);
+      break;
+    case 'spawn': {
+      const p = vec3(m.p); if (!p) return;
+      alive[opIdx] = true;
+      snaps = [{ t: performance.now() - INTERP_DELAY, p, y: Math.atan2(p[0], p[2]), x: 0 }];
+      break;
+    }
+    case 'start': if (mode === 'guest') startMatch(); break;
+    case 'over': if (mode === 'guest' && (m.w === 0 || m.w === 1)) endMatch(m.w); break;
+    case 'rematch':
+      if (mode === 'host' && state === 'over') { send({ t: 'start' }); startMatch(); }
+      break;
+    case 'ping': send({ t: 'pong', ts: m.ts }); break;
+    case 'pong': if (Number.isFinite(m.ts)) ping = Math.max(0, Math.round(performance.now() - m.ts)); break;
+  }
+}
+
+function lerpAngle(a, b, k) {
+  let d = (b - a) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2; else if (d < -Math.PI) d += Math.PI * 2;
+  return a + d * k;
+}
+function updateRemoteFromNet() {
+  if (!snaps.length) return;
+  const rt = performance.now() - INTERP_DELAY;
+  while (snaps.length > 2 && snaps[1].t <= rt) snaps.shift();
+  const a = snaps[0], b = snaps[1];
+  if (!b || rt <= a.t) { remote.pos.fromArray(a.p); remote.yaw = a.y; remote.pitch = a.x; }
+  else {
+    const k = Math.min(1, (rt - a.t) / Math.max(1, b.t - a.t));
+    remote.pos.set(a.p[0] + (b.p[0] - a.p[0]) * k, a.p[1] + (b.p[1] - a.p[1]) * k, a.p[2] + (b.p[2] - a.p[2]) * k);
+    remote.yaw = lerpAngle(a.y, b.y, k); remote.pitch = a.x + (b.x - a.x) * k;
+  }
+  remote.seen = true;
+}
+
+/* =====================================================================
+   UI
+   ===================================================================== */
+function showView(id) { for (const v of document.querySelectorAll('.view')) v.classList.toggle('on', v.id === id); }
+function setStatus(t, err = false) { const s = $('status'); s.textContent = t; s.classList.toggle('err', err); }
+function updateScore() { $('scMe').textContent = scores[myIdx]; $('scOp').textContent = scores[opIdx]; }
+let msgTimer = 0;
+function showMsg(big, small, ms) {
+  const el = $('msg'); el.textContent = big;
+  if (small) { const s = document.createElement('small'); s.textContent = small; el.appendChild(s); }
+  el.style.opacity = 1; clearTimeout(msgTimer); msgTimer = setTimeout(() => el.style.opacity = 0, ms);
+}
+function updateOverlays() {
+  $('menu').classList.toggle('on', state === 'menu');
+  $('over').classList.toggle('on', state === 'over');
+  $('pause').classList.toggle('on', state === 'playing' && !captured());
+  $('softNote').style.display = softCapture && state === 'playing' ? 'block' : 'none';
+  $('hud').classList.toggle('on', state !== 'menu');
+  if (viewGun) viewGun.visible = state === 'playing';
+}
+
+$('bHost').onclick = hostGame;
+$('bJoin').onclick = () => { audioInit(); showView('vJoin'); setStatus(''); $('inCode').focus(); };
+$('bConnect').onclick = () => joinGame($('inCode').value);
+$('inCode').addEventListener('keydown', e => { if (e.key === 'Enter') joinGame($('inCode').value); });
+$('bPractice').onclick = () => { closeNet(); mode = 'practice'; myIdx = 0; opIdx = 1; startMatch(); lockPointer(); };
+for (const b of document.querySelectorAll('[data-back]')) b.onclick = () => quitToMenu();
+const copy = async (text, btn) => {
+  try { await navigator.clipboard.writeText(text); const o = btn.textContent; btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = o, 1200); }
+  catch { setStatus('Could not copy. Select the code and copy it manually.', true); }
+};
+$('bCopy').onclick = e => copy($('code').textContent, e.currentTarget);
+$('bCopyLink').onclick = e => copy(location.href.split('#')[0] + '#' + $('code').textContent, e.currentTarget);
+if (!location.protocol.startsWith('http')) $('bCopyLink').style.display = 'none';   // links are useless from file://
+$('bResume').onclick = lockPointer;
+$('bQuit').onclick = () => quitToMenu();
+$('bOverQuit').onclick = () => quitToMenu();
+$('bRematch').onclick = () => {
+  if (mode === 'practice') { startMatch(); lockPointer(); }
+  else if (mode === 'host') { send({ t: 'start' }); startMatch(); lockPointer(); }
+  else { send({ t: 'rematch' }); $('overStatus').textContent = 'Rematch requested…'; }
+};
+const sensEl = $('sens'); sensEl.value = sens; $('sensV').textContent = sens.toFixed(2);
+sensEl.oninput = () => { sens = parseFloat(sensEl.value); $('sensV').textContent = sens.toFixed(2); localStorage.setItem('igd-sens', sens); };
+
+addEventListener('pagehide', () => { if (conn) { try { conn.close(); } catch { } } });   // tell the opponent we left
+
+// invite link: page.html#CODE pre-fills the join screen
+{
+  const h = location.hash.slice(1).toUpperCase();
+  if (/^[A-Z0-9]{6}$/.test(h)) { showView('vJoin'); $('inCode').value = h; history.replaceState(null, '', location.pathname + location.search); }
+}
+
+/* =====================================================================
+   Main loop
+   ===================================================================== */
+let last = performance.now(), sendAcc = 0, menuT = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+
+  if (state === 'playing') {
+    if (alive[myIdx]) {
+      const n = Math.max(1, Math.ceil(dt / (1 / 120)));
+      for (let i = 0; i < n; i++) physStep(dt / n);
+    } else if (now >= respawnAt) respawnLocal();
+    cooldown = Math.max(0, cooldown - dt);
+
+    if (mode === 'practice') updateBot(dt); else updateRemoteFromNet();
+
+    camera.position.set(me.pos.x, me.pos.y + EYE, me.pos.z);
+    camera.rotation.set(me.pitch, me.yaw, 0);
+    if (softCapture) {   // cursor parked at a screen edge keeps turning
+      const ex = mouse.x < 0.07 ? 1 : mouse.x > 0.93 ? -1 : 0, ey = mouse.y < 0.07 ? 1 : mouse.y > 0.93 ? -1 : 0;
+      me.yaw += ex * 2.6 * sens * dt; me.pitch = Math.max(-1.55, Math.min(1.55, me.pitch + ey * 1.6 * sens * dt));
+    }
+    if (firing && captured()) tryFire();
+
+    sendAcc += dt;
+    if (sendAcc >= NET_RATE) {
+      sendAcc = 0;
+      if (alive[myIdx]) send({ t: 's', p: [+me.pos.x.toFixed(3), +me.pos.y.toFixed(3), +me.pos.z.toFixed(3)], y: +me.yaw.toFixed(4), x: +me.pitch.toFixed(4) });
+    }
+  } else if (state === 'menu') {
+    menuT += dt * 0.12;
+    camera.position.set(Math.cos(menuT) * 34, 15, Math.sin(menuT) * 34);
+    camera.lookAt(0, 2, 0);
+  }
+
+  // remote model
+  remoteModel.visible = state !== 'menu' && alive[opIdx] && remote.seen;
+  if (remoteModel.visible) {
+    remoteModel.position.copy(remote.pos); remoteModel.rotation.y = remote.yaw;
+    if (remoteHeadPivot) remoteHeadPivot.rotation.x = remote.pitch;
+  }
+
+  // viewmodel recoil + effects + pads
+  recoil = Math.max(0, recoil - dt * 5);
+  if (viewGun) { viewGun.position.z = -0.45 + recoil * 0.07; viewGun.rotation.x = recoil * 0.12; }
+  for (let i = effects.length - 1; i >= 0; i--) {
+    const e = effects[i]; e.life -= dt;
+    if (e.life <= 0) { e.dispose(); effects.splice(i, 1); } else e.tick(e.life / e.max, dt);
+  }
+  const pulse = 0.75 + Math.sin(now * 0.006) * 0.25;
+  for (const p of pads) p.mesh.material.color.setRGB(0.15 * pulse, 1 * pulse, 0.5 * pulse);
+
+  // HUD
+  if (state !== 'menu') {
+    $('coolfill').style.width = (100 * (1 - cooldown / FIRE_COOLDOWN)) + '%';
+    $('speed').textContent = Math.round(Math.hypot(me.vel.x, me.vel.z) * 32) + ' ups';
+    $('info').textContent = mode === 'practice' ? 'PRACTICE' : (ping === null ? 'P2P' : 'P2P · ' + ping + ' ms');
+  }
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(frame);
+
+// debug handle (console poking / automated checks)
+window.IGD = { me, remote, get state() { return state; }, get scores() { return scores; }, get mode() { return mode; }, solids, keys, physStep, tryFire, registerKill };
+</script>
+</body>
+</html>
