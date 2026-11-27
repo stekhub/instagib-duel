@@ -597,7 +597,7 @@ const rain = (() => {
   }));
   m.frustumCulled = false; scene.add(m); return m;
 })();
-let rainOn = localStorage.getItem('ng-rain') !== 'off', rainGain = null;
+let rainOn = localStorage.getItem('ng-rain') === 'on', rainGain = null;
 function setRain(on) {
   rainOn = on; rain.visible = on; localStorage.setItem('ng-rain', on ? 'on' : 'off');
   if (rainGain) rainGain.gain.value = on ? 0.035 : 0;
