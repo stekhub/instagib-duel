@@ -32,6 +32,15 @@
   #msg small { display:block; font-size:14px; font-weight:400; letter-spacing:.16em; opacity:.85; margin-top:6px; text-shadow:0 0 6px #000; }
   #info { position:absolute; left:14px; top:14px; font-size:11px; letter-spacing:.12em; opacity:.65; }
   #keys { position:absolute; left:14px; bottom:12px; font-size:11px; opacity:.45; letter-spacing:.05em; }
+  #chat { position:fixed; left:14px; bottom:34px; width:min(420px,60vw); z-index:20; display:none; pointer-events:none; }
+  #chat.on { display:block; }
+  #chatLog div { font-size:13px; line-height:1.5; padding:2px 8px; margin-top:3px; background:rgba(10,6,22,.72); border-left:2px solid var(--cy);
+    width:fit-content; max-width:100%; overflow-wrap:anywhere; transition:opacity .6s; }
+  #chatLog div.old { opacity:0; }
+  #chat.typing #chatLog div.old { opacity:1; }
+  #chatLog b { margin-right:8px; }
+  #chatIn { display:none; margin-top:6px; width:100%; padding:7px 10px; font-size:13px; letter-spacing:.04em; text-transform:none; text-align:left; pointer-events:auto; }
+  #chat.typing #chatIn { display:block; }
   #flash { position:absolute; inset:0; background:radial-gradient(ellipse at center, transparent 30%, rgba(255,20,80,.6)); opacity:0; transition:opacity .4s; }
   #softNote { display:none; position:absolute; left:50%; top:74px; transform:translateX(-50%); font-size:12px; padding:5px 12px; background:var(--panel);
     border:1px solid rgba(255,170,80,.5); color:#ffc890; white-space:nowrap; }
@@ -56,16 +65,30 @@
   button:disabled { opacity:.35; cursor:default; }
   input[type=text], select { font:inherit; color:#fff; background:rgba(0,0,0,.45); border:1px solid var(--line); outline:none; padding:10px; width:100%; text-align:center; letter-spacing:.14em; }
   input[type=text]:focus { border-color:var(--mg); }
-  #inCode { font-size:26px; letter-spacing:.3em; text-transform:uppercase; }
-  .code { font-size:40px; font-weight:800; letter-spacing:.3em; padding-left:.3em; color:var(--cy); text-shadow:0 0 14px var(--cy); font-family:Consolas,monospace; margin:4px 0 8px; }
   .row { display:flex; gap:8px; justify-content:center; align-items:center; margin-bottom:8px; }
   .status { min-height:18px; margin-top:14px; font-size:13px; opacity:.85; }
+  .support { margin-top:20px; padding:12px 10px 14px; border:1px solid var(--mg); border-radius:3px; background:rgba(255,43,214,.08);
+    box-shadow:0 0 14px rgba(255,43,214,.35), inset 0 0 14px rgba(255,43,214,.15); }
+  .support .sup { font-size:15px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#fff; text-shadow:0 0 10px var(--mg), 0 0 2px #fff; }
+  .support .star { display:inline-block; color:#ffe14d; text-shadow:0 0 10px #ffb800, 0 0 22px #ffb800; }
+  .support a { display:inline-block; margin-top:8px; font-size:17px; font-weight:900; letter-spacing:.12em; color:var(--cy); text-decoration:none;
+    text-shadow:0 0 8px var(--cy), 0 0 18px var(--cy); animation:supGlitch 3.2s steps(1) infinite; }
+  .support a:hover { color:#fff; text-shadow:0 0 10px var(--mg), 0 0 24px var(--mg); animation:none; }
+  @keyframes supGlitch { 0%,88%,100% { transform:none; text-shadow:0 0 8px var(--cy), 0 0 18px var(--cy); }
+    90% { transform:translate(-2px,1px) skewX(-8deg); text-shadow:3px 0 0 var(--mg), -3px 0 0 var(--cy); }
+    93% { transform:translate(2px,-1px); text-shadow:-3px 0 0 var(--mg), 3px 0 0 #fff; opacity:.8; }
+    96% { transform:translate(-1px,0) skewX(6deg); text-shadow:2px 0 0 var(--cy), -2px 0 0 var(--mg); } }
+  @media (prefers-reduced-motion: reduce) { .support a { animation:none; } }
   .status.err { color:#ff8a70; }
   .hint { font-size:12px; opacity:.62; line-height:1.7; margin-top:12px; }
   .view { display:none; } .view.on { display:block; }
   label.f { display:flex; align-items:center; gap:10px; font-size:11px; letter-spacing:.14em; opacity:.85; margin-top:12px; justify-content:center; text-transform:uppercase; }
   label.f input[type=range] { flex:1; max-width:200px; } label.f select { width:auto; padding:6px 10px; }
-  #plist { text-align:left; margin:12px 0 4px; }
+  #plist, #pauseRows { text-align:left; margin:12px 0 4px; }
+  .rows div span:last-child { display:flex; align-items:center; gap:6px; }
+  button.tiny { width:auto; margin:0; padding:3px 8px; font-size:10px; letter-spacing:.1em; background:transparent; border:1px solid var(--line); color:inherit; opacity:.8; }
+  button.tiny:hover { opacity:1; border-color:var(--cy); } button.tiny.kick:hover { border-color:#ff5a5a; color:#ff8a70; } button.tiny.on { color:#ff8a70; border-color:#ff8a70; }
+  #chatLog div.sys { border-left-color:var(--mg); opacity:.85; font-style:italic; }
   kbd { border:1px solid var(--line); padding:1px 6px; font-family:inherit; font-size:11px; }
 </style>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -84,28 +107,27 @@
   <div id="info"></div>
   <div id="softNote">Limited mouse mode: this browser blocks mouse capture. Hold the cursor at a screen edge to keep turning · ESC for menu</div>
   <div id="board"><h2 style="font-size:18px">SCOREBOARD</h2><div class="rows" id="boardRows"></div></div>
-  <div id="keys">WASD / arrows move · R-CTRL or SPACE jump · double-tap to dodge · LMB fire · TAB scores · ESC menu</div>
+  <div id="keys">WASD / arrows move · R-CTRL or SPACE jump · double-tap to dodge · LMB fire · TAB scores · ENTER chat · ESC menu</div>
 </div>
+
+<div id="chat"><div id="chatLog"></div><input type="text" id="chatIn" maxlength="120" placeholder="Say something · Enter to send · Esc to cancel" autocomplete="off" spellcheck="false"></div>
 
 <div class="overlay on" id="menu">
   <div class="panel">
     <h1>INSTAGIB DUEL</h1>
     <div class="sub">instagib arena · up to 6 players</div>
     <div class="view on" id="vMain">
-      <input type="text" id="inName" maxlength="14" placeholder="CALLSIGN" autocomplete="off" spellcheck="false">
-      <button id="bHost">Host a lobby</button>
-      <button id="bJoin">Join with a code</button>
+      <input type="text" id="inName" maxlength="14" placeholder="ENTER PLAYER NAME" autocomplete="off" spellcheck="false">
+      <button id="bPlay">Play online</button>
       <button id="bPractice" class="ghost">Practice vs bots (offline)</button>
       <button id="bOptions" class="ghost">Options</button>
+      <div class="support"><div class="sup"><span class="star">★</span> Support me: star my repos <span class="star">★</span></div><a href="https://github.com/stekhub/" target="_blank" rel="noopener noreferrer">github.com/stekhub</a></div>
     </div>
     <div class="view" id="vOptions">
       <label class="f"><input type="checkbox" id="chkRain"> Rain</label>
+      <label class="f">Music <select id="selMusic"><option value="b">Track 2 (new)</option><option value="a">Track 1 (first version)</option><option value="off">Off</option></select></label>
+      <button class="ghost" id="bBans">Forget kicked players</button>
       <button class="ghost" id="bOptBack">Back</button>
-    </div>
-    <div class="view" id="vJoin">
-      <input type="text" id="inCode" maxlength="6" placeholder="CODE" autocomplete="off" spellcheck="false">
-      <button id="bConnect">Connect</button>
-      <button class="ghost" id="bJoinBack">Back</button>
     </div>
     <div class="status" id="status"></div>
   </div>
@@ -113,12 +135,10 @@
 
 <div class="overlay" id="lobby">
   <div class="panel">
-    <h2>LOBBY</h2>
-    <div class="code" id="code">······</div>
-    <div class="row"><button class="small" id="bCopy">Copy code</button><button class="small" id="bCopyLink">Copy invite link</button></div>
+    <h2 id="lobbyTitle">LOBBY</h2>
     <div class="rows" id="plist"></div>
     <label class="f">Frag limit <select id="selLimit"><option>5</option><option>10</option><option selected>15</option><option>25</option><option>40</option></select></label>
-    <button id="bStart">Start match</button>
+    <button id="bStart">Start now</button>
     <div class="status" id="lobbyStatus"></div>
     <button class="ghost" id="bLeave">Leave</button>
   </div>
@@ -131,6 +151,7 @@
       Double-tap a direction to dodge. Glowing pads launch you across the arena.<br>With WASD use Space to jump: Ctrl+W closes the browser tab.</div>
     <label class="f">Mouse <input type="range" id="sens" min="0.3" max="4" step="0.05"> <span id="sensV"></span></label>
     <label class="f">Graphics <select id="selQ"><option value="high">High</option><option value="low">Low</option></select></label>
+    <div class="rows" id="pauseRows"></div>
     <button id="bResume">Enter arena</button>
     <button class="ghost" id="bQuit">Quit to menu</button>
   </div>
@@ -144,6 +165,7 @@
     <button id="bAgain">Play again</button>
     <button class="ghost" id="bToLobby">Back to lobby</button>
     <button class="ghost" id="bOverQuit">Quit to menu</button>
+    <div class="support"><div class="sup"><span class="star">★</span> Had fun? Star my repos <span class="star">★</span></div><a href="https://github.com/stekhub/" target="_blank" rel="noopener noreferrer">github.com/stekhub</a></div>
   </div>
 </div>
 
@@ -159,8 +181,17 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
    ===================================================================== */
 const MAX_PLAYERS = 6;
 const RESPAWN_TIME = 1.8, FIRE_COOLDOWN = 0.9;
-const NET_RATE = 1000 / 30, INTERP_DELAY = 100, PEER_TIMEOUT = 8000;
+const NET_RATE = 1000 / 30, PEER_TIMEOUT = 8000;
+// remote players are drawn slightly in the past so movement can be blended between updates. The delay is per player:
+// 60 ms on a steady connection, growing (up to 250 ms) when that player's updates arrive unevenly.
+const INTERP_MIN = 60, INTERP_MAX = 250;
+const LOBBY_COUNTDOWN = 15, OVER_SECONDS = 10;            // auto-start once 2+ players are in; auto-return to the lobby after a match
+const JOIN_TIMEOUT = 10000, BAN_HOURS = 24;
 const PEER_PREFIX = 'neon-gib-v1-';
+const LOBBY_BASE = PEER_PREFIX + 'vaesrkmzdcezq97n';   // shared lobbies: first player in hosts one, everyone after joins it
+const MAX_LOBBIES = 100;                                  // when lobby N is full, players move on to lobby N+1
+let lobbyN = 0;
+const lobbyId = () => LOBBY_BASE + '-' + lobbyN;
 const PALETTE = [0x00e5ff, 0xff2bd6, 0xfff23a, 0x4dff6a, 0xff7a1a, 0x9d6bff];
 const CSS_PAL = ['#00e5ff', '#ff2bd6', '#fff23a', '#4dff6a', '#ff7a1a', '#9d6bff'];
 const BOT_NAMES = ['VEX', 'KIRO', 'NYX', 'ZERO', 'HALO'];
@@ -631,12 +662,197 @@ function audioInit() {
       const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;                       // rain bed
       const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3200; bp.Q.value = 0.4;
       const g = ac.createGain(); g.gain.value = rainOn ? 0.035 : 0; rainGain = g; src.connect(bp).connect(g).connect(ac.destination); src.start();
-      const o = ac.createOscillator(), og = ac.createGain(); o.type = 'sawtooth'; o.frequency.value = 46; og.gain.value = 0.018;   // city hum
-      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 160; o.connect(lp).connect(og).connect(ac.destination); o.start();
+      music.init(buf);
     } catch { }
   }
   if (ac && ac.state === 'suspended') ac.resume();
 }
+/* ---- background music: synthesised and sequenced live (no audio files). Two tracks, picked in Options.
+   Track 1 (144 BPM): a 16-bar loop in E minor: four-on-the-floor kick, rolling bass, palm-muted guitar gallop, arpeggio.
+   Track 2 (150 BPM): a 32-bar song: intro build > riff verse > chorus with a lead melody over Em-C-D-B >
+   half-time breakdown with a riser > double-kick gallop verse. Stereo guitars, and the kick ducks the band (pumping). ---- */
+let musicTrack = (v => v === 'off' || v === 'a' || v === 'b' ? v : 'b')(localStorage.getItem('ng-music'));
+const music = (() => {
+  let noise = null, bus = null, master = null, duck = null, amp = null, ampL = null, ampR = null, lead = null, leadDelay = null, next = 0, step = 0, S16 = 0.1;
+  const hz = semi => 82.407 * Math.pow(2, semi / 12);      // semitones relative to E2
+  function env(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
+  function hold(g, t, peak, len) { g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + 0.012); g.gain.setValueAtTime(peak, t + Math.max(0.02, len - 0.05)); g.gain.linearRampToValueAtTime(0.0001, t + len); }
+  function osc(type, f, t, dur, dest, det = 0) { const o = ac.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t); o.detune.value = det; o.connect(dest); o.start(t); o.stop(t + dur + 0.05); return o; }
+  function nz(t, dur, dest) { const n = ac.createBufferSource(); n.buffer = noise; n.connect(dest); n.start(t, Math.random() * 1.5, dur + 0.05); }
+  function filt(type, f, q = 0.7) { const b = ac.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; return b; }
+
+  // ---- drum kit
+  function kick(t, v, click = false) {
+    const g = ac.createGain(); g.connect(bus); env(g, t, 0.002, v, 0.3);
+    const o = osc('sine', 165, t, 0.32, g); o.frequency.exponentialRampToValueAtTime(43, t + 0.11);
+    if (click) { const cg = ac.createGain(), f = filt('highpass', 3000); f.connect(cg).connect(bus); env(cg, t, 0.001, v * 0.35, 0.012); nz(t, 0.02, f); }
+  }
+  function snare(t, v, fat = false) {
+    const g = ac.createGain(), f = filt('bandpass', fat ? 2400 : 1900, 0.6);
+    f.connect(g).connect(bus); env(g, t, 0.001, v, fat ? 0.22 : 0.17); nz(t, 0.25, f);
+    const tg = ac.createGain(); tg.connect(bus); env(tg, t, 0.001, v * (fat ? 0.8 : 0.5), fat ? 0.12 : 0.08);
+    const o = osc('triangle', fat ? 230 : 196, t, 0.14, tg); if (fat) o.frequency.exponentialRampToValueAtTime(150, t + 0.1);
+  }
+  function hat(t, v, open) { const g = ac.createGain(), f = filt('highpass', 7500); f.connect(g).connect(bus); env(g, t, 0.001, v, open ? 0.16 : 0.035); nz(t, open ? 0.2 : 0.05, f); }
+  function crash(t, v) { const g = ac.createGain(), f = filt('highpass', 4500); f.connect(g).connect(bus); env(g, t, 0.002, v, 1.3); nz(t, 1.4, f); }
+  function riser(t, len) {
+    const g = ac.createGain(), f = filt('bandpass', 400, 2.5); f.frequency.setValueAtTime(400, t); f.frequency.exponentialRampToValueAtTime(9000, t + len);
+    f.connect(g).connect(bus); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.3, t + len); g.gain.linearRampToValueAtTime(0.0001, t + len + 0.03);
+    for (let k = 0; k < len; k += 1.4) nz(t + k, Math.min(1.4, len - k), f);
+  }
+  function pump(t) { duck.gain.setValueAtTime(0.38, t); duck.gain.linearRampToValueAtTime(1, t + S16 * 2.2); }     // kick ducks the band
+
+  // ---- pitched instruments
+  function bass(t, f, v, cut, dest = bus, len = S16 * 0.9) {
+    const g = ac.createGain(), lp = filt('lowpass', cut, 6);
+    lp.frequency.setValueAtTime(cut * 2.4, t); lp.frequency.exponentialRampToValueAtTime(cut, t + 0.09);
+    lp.connect(g).connect(dest); env(g, t, 0.003, v, len); osc('sawtooth', f, t, len + 0.05, lp);
+  }
+  function chug(t, root, v, len) {          // track 1 guitar: power chord into one shared amp
+    const g = ac.createGain(); g.connect(amp); env(g, t, 0.003, v, len);
+    for (const [r, det] of [[1, 0], [1.4983, 4], [2, -5]]) osc('sawtooth', root * r, t, len + 0.05, g, det);
+  }
+  function arp(t, f, v) { const g = ac.createGain(); g.connect(lead); env(g, t, 0.004, v, S16 * 1.6); osc('square', f, t, S16 * 1.7, g); }
+  function gtr(t, semi, v, len, muted) {    // track 2 guitar: double-tracked left and right, palm-muted or ringing
+    const f = hz(semi);
+    for (const [dest, d] of [[ampL, -7], [ampR, 8]]) {
+      const g = ac.createGain(), tone = filt('lowpass', muted ? 1100 : 5000); tone.connect(g).connect(dest);
+      if (muted) env(g, t, 0.002, v, len); else hold(g, t, v * 0.85, len);
+      osc('sawtooth', f, t, len + 0.05, tone, d); osc('sawtooth', f * 1.4983, t, len + 0.05, tone, d + 3); osc('sawtooth', f * 2, t, len + 0.05, tone, -d);
+    }
+  }
+  function saw(t, semi, v, len) {           // track 2 lead: three detuned saws
+    const g = ac.createGain(); g.connect(lead); hold(g, t, v, len);
+    for (const d of [-14, 0, 14]) osc('sawtooth', hz(semi), t, len + 0.05, g, d);
+  }
+
+  // ---- track 1
+  const PROG = [0, 0, -4, -2];
+  function trackA(t, i) {
+    const s = i % 16, bar = Math.floor(i / 16) % 16, root = PROG[bar % 4], full = bar >= 4, metal = bar >= 12;
+    if (s % 4 === 0) kick(t, 0.95); else if (metal && s % 2 === 0) kick(t, 0.5);
+    if (full && (s === 4 || s === 12)) snare(t, 0.6);
+    if (bar === 15 && s >= 12) snare(t, 0.25 + (s - 12) * 0.1);
+    if (s % 4 === 2) hat(t, 0.16, true); else if (full) hat(t, s % 2 ? 0.05 : 0.08, false);
+    if (s % 4 !== 0) bass(t, hz(root - 12) * (s % 4 === 2 ? 2 : 1), 0.42, full ? 520 : 220 + bar * 60);
+    if (full) {
+      if (s === 0 && bar % 4 === 3) chug(t, hz(root), 0.22, S16 * 7);
+      else if (!(bar % 4 === 3 && s < 8) && [0, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14, 15].includes(s)) chug(t, hz(root), s % 4 === 0 ? 0.2 : 0.14, 0.085);
+    }
+    if (bar >= 8) arp(t, hz(root + 24 + [0, 7, 12, 7, 15, 12, 7, 3][s % 8]), 0.05);
+  }
+
+  // ---- track 2
+  const RIFF = [          // verse riff: 0 = palm-muted low E, anything else = accented note (semitones above E)
+    [0, 0, 3, 0, 0, 5, 0, 0, 3, 0, 0, 6, 5, 0, 3, 0],
+    [0, 0, 7, 0, 0, 6, 0, 0, 5, 0, 0, 3, 5, 6, 5, 3],
+    [0, 0, 3, 0, 0, 5, 0, 0, 3, 0, 0, 6, 5, 0, 3, 0],
+    [0, 0, 8, 0, 0, 7, 0, 0, 8, 8, 7, 7, 5, 5, 3, 2]];
+  const CHORDS = [0, 0, -4, -4, -2, -2, -5, -5];                    // chorus: Em Em C C D D B B
+  const HITS = [0, 3, 6, 8, 11, 14], HITLEN = [3, 3, 2, 3, 3, 2];    // 3-3-2 chord rhythm
+  const MELODY = [        // chorus lead, eighth notes, semitones above E4 (null = keep holding)
+    [7, null, null, 3, null, null, 5, null], [7, null, null, 10, null, null, 7, null],
+    [8, null, null, 7, null, null, 3, null], [5, null, 3, null, 0, null, null, null],
+    [5, null, null, 10, null, null, 14, null], [12, null, null, 10, null, null, 5, null],
+    [14, null, null, 10, null, null, 7, null], [11, null, null, null, 7, null, 11, null]];
+  const GALLOP = [0, 0, 8, 7, 0, 0, 3, 5], RUN = [12, 10, 8, 7, 5, 3, 2, 0];
+  function trackB(t, i) {
+    const s = i % 16, bar = Math.floor(i / 16) % 32, q = s % 4 === 0;
+    if (bar < 4) {                                                                       // intro: riff on a filtered synth, drums build
+      if (q) { kick(t, 0.9, true); pump(t); }
+      if (bar >= 2) hat(t, s % 4 === 2 ? 0.14 : 0.05, s % 4 === 2);
+      const n = RIFF[bar][s]; bass(t, hz(n + 12), n ? 0.3 : 0.2, 500 + bar * 500 + s * 30, duck);
+      if (bar === 3 && s === 0) riser(t, S16 * 16);
+      if (bar === 3 && s >= 8) snare(t, 0.15 + (s - 8) * 0.06, true);
+      return;
+    }
+    if (bar < 12) {                                                                      // verse: the riff
+      const sb = bar - 4, n = RIFF[sb % 4][s];
+      if (sb === 0 && s === 0) crash(t, 0.3);
+      if (q) { kick(t, 1, true); pump(t); }
+      if (s === 4 || s === 12) snare(t, 0.65, true);
+      if (s % 4 === 2) hat(t, 0.15, true); else hat(t, s % 2 ? 0.045 : 0.07, false);
+      if (n) gtr(t, n, 0.34, S16 * 0.95, false); else gtr(t, 0, q ? 0.4 : 0.3, 0.075, true);
+      if (!q) bass(t, hz(n - 12), 0.4, 480, duck);
+      if (sb === 7 && s >= 12) snare(t, 0.3 + (s - 12) * 0.1, true);
+      return;
+    }
+    if (bar < 20) {                                                                      // chorus: big chords and the lead melody
+      const sb = bar - 12, root = CHORDS[sb], h = HITS.indexOf(s);
+      if (sb % 4 === 0 && s === 0) crash(t, 0.32);
+      if (q) { kick(t, 1, true); pump(t); }
+      if (s === 4 || s === 12) snare(t, 0.7, true);
+      if (s % 4 === 2) hat(t, 0.2, true); else if (s % 2 === 0) hat(t, 0.07, false);
+      if (h >= 0) gtr(t, root, 0.36, S16 * HITLEN[h] * 0.97, false);
+      if (!q) bass(t, hz(root - 12) * (s % 4 === 2 ? 2 : 1), 0.44, 600, duck);
+      if (s % 2 === 0) {
+        const m = MELODY[sb], k = s / 2;
+        if (m[k] !== null) { let len = 1; while (k + len < 8 && m[k + len] === null) len++; saw(t, 24 + m[k], 0.075, S16 * 2 * len * 0.96); }
+      }
+      if (sb === 7 && s >= 12) snare(t, 0.3 + (s - 12) * 0.1, true);
+      return;
+    }
+    if (bar < 24) {                                                                      // breakdown: half-time and heavy
+      const sb = bar - 20, root = [0, 0, 1, 0][sb];
+      if (sb === 0 && s === 0) crash(t, 0.34);
+      if (s === 0 || s === 3 || s === 10) { kick(t, 1, true); pump(t); }
+      if (s === 8) snare(t, 0.85, true);
+      if (q) hat(t, 0.12, true);
+      if (s === 0) gtr(t, root, 0.4, S16 * 2.8, false); else if ([3, 6, 10, 11, 14].includes(s)) gtr(t, root, 0.36, 0.09, true);
+      if (s === 0 || s === 3 || s === 10) bass(t, hz(root - 12), 0.5, 380, bus, S16 * 2.5);
+      arp(t, hz(36 + [0, 3, 7, 10, 12, 10, 7, 3][s % 8]), 0.03);
+      if (sb === 3) { if (s === 0) riser(t, S16 * 16); if (s >= 8) { snare(t, 0.2 + (s - 8) * 0.07, true); if (s % 2 === 0) kick(t, 0.8, true); } }
+      return;
+    }
+    {                                                                                    // second verse: double-kick gallop
+      const sb = bar - 24, root = GALLOP[sb], run = sb === 7 && s >= 8;
+      if (sb === 0 && s === 0) crash(t, 0.34);
+      if (q) { kick(t, 1, true); pump(t); } else if (s % 2 === 0) kick(t, 0.6, true);
+      if (s === 4 || s === 12) snare(t, 0.7, true);
+      if (s % 4 === 2) hat(t, 0.16, true); else hat(t, 0.05, false);
+      if (run) gtr(t, RUN[s - 8], 0.34, S16 * 0.95, false);
+      else if (s === 0) gtr(t, root, 0.36, S16 * 1.8, false);
+      else if ([2, 3, 4, 6, 7, 8, 10, 11, 12, 14, 15].includes(s)) gtr(t, root, s % 4 === 0 ? 0.4 : 0.3, 0.075, true);
+      if (!q) bass(t, hz((run ? RUN[s - 8] : root) - 12), 0.42, 520, duck);
+      if (sb >= 4) arp(t, hz(root + 24 + [0, 7, 12, 7, 15, 12, 7, 3][s % 8]), 0.04);
+      if (run && s >= 12) snare(t, 0.35 + (s - 12) * 0.1, true);
+    }
+  }
+
+  const TRACKS = { a: { bpm: 144, fn: trackA, vol: 0.18 }, b: { bpm: 150, fn: trackB, vol: 0.16 } };
+  function tick() {
+    const tr = TRACKS[musicTrack]; if (!ac || !tr || ac.state !== 'running') return;
+    if (next < ac.currentTime) next = ac.currentTime + 0.05;                               // fell behind (tab was hidden): resync
+    while (next < ac.currentTime + 0.15) { tr.fn(next, step++); next += S16; }
+  }
+  function select() {                        // (re)start the chosen track from its first bar
+    const tr = TRACKS[musicTrack]; step = 0; next = 0; if (!ac || !tr) return;
+    S16 = 60 / tr.bpm / 4; master.gain.value = tr.vol; leadDelay.delayTime.value = S16 * 3;
+  }
+  function makeAmp(pan, dest, gain) {        // guitar amp: tighten the lows, distort, speaker-cabinet filter
+    const inp = ac.createGain(), hp = filt('highpass', 110), drive = ac.createWaveShaper(), curve = new Float32Array(2048);
+    for (let i = 0; i < curve.length; i++) { const x = i / 1024 - 1; curve[i] = Math.tanh(x * 9) * 0.6; } drive.curve = curve; drive.oversample = '2x';
+    const cab = filt('lowpass', 3000, 0.9), mid = filt('peaking', 700); mid.gain.value = -5;
+    const out = ac.createGain(); out.gain.value = gain;
+    let tail = out; if (pan !== 0 && ac.createStereoPanner) { tail = ac.createStereoPanner(); tail.pan.value = pan; out.connect(tail); }
+    inp.connect(hp).connect(drive).connect(cab).connect(mid).connect(out); tail.connect(dest); return inp;
+  }
+  function init(noiseBuf) {
+    noise = noiseBuf;
+    const comp = ac.createDynamicsCompressor(); comp.threshold.value = -20; comp.ratio.value = 5; comp.attack.value = 0.003; comp.release.value = 0.12;
+    master = ac.createGain(); comp.connect(master).connect(ac.destination);
+    bus = ac.createGain(); bus.connect(comp);
+    duck = ac.createGain(); duck.connect(bus);
+    amp = makeAmp(0, bus, 0.5); ampL = makeAmp(-0.75, duck, 0.42); ampR = makeAmp(0.75, duck, 0.42);
+    lead = ac.createGain(); const lf = filt('lowpass', 3200);
+    leadDelay = ac.createDelay(1); const fb = ac.createGain(); fb.gain.value = 0.35;
+    lead.connect(lf); lf.connect(duck); lf.connect(leadDelay); leadDelay.connect(fb).connect(leadDelay); leadDelay.connect(duck);
+    select(); setInterval(tick, 25);
+  }
+  return { init, select };
+})();
+function setMusic(v) { musicTrack = v; localStorage.setItem('ng-music', v); music.select(); }
+
 function tone(type, f0, f1, dur, vol) {
   if (!ac || vol <= 0.001) return;
   const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
@@ -645,6 +861,7 @@ function tone(type, f0, f1, dur, vol) {
   o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + 0.02);
 }
 const sfx = {
+  chat: () => tone('sine', 1320, 1320, 0.07, 0.05),
   shoot: (v = 1) => { tone('sawtooth', 1900, 70, 0.32, 0.15 * v); tone('square', 3200, 240, 0.14, 0.06 * v); tone('sine', 120, 40, 0.25, 0.2 * v); },
   frag: () => { tone('triangle', 660, 660, 0.09, 0.2); setTimeout(() => tone('triangle', 990, 990, 0.2, 0.2), 90); },
   gib: (v = 1) => tone('sawtooth', 300, 40, 0.4, 0.14 * v),
@@ -879,6 +1096,7 @@ let role = null;                // 'host' | 'guest' | 'solo'
 let myId = 0, fragLimit = 15, myName = localStorage.getItem('ng-name') || '';
 let cooldown = 0, respawnAt = 0, ping = null, damageFx = 0;
 const players = new Map();      // id -> player record (everyone, including me)
+const muted = new Set();        // ids whose chat I have hidden (local only)
 const isAuth = () => role === 'host' || role === 'solo';
 const me = { pos: new V3(), vel: new V3(), yaw: 0, pitch: 0, onGround: false, dodgeCd: 0, jumpCd: 0, stepOff: 0, kick: 0 };
 const myRec = () => players.get(myId);
@@ -887,10 +1105,10 @@ const cleanName = n => (String(n || '').replace(/[^\w \-\.]/g, '').trim().slice(
 function addPlayer(id, name, { bot = false } = {}) {
   const ci = id % PALETTE.length;
   const p = { id, name, ci, color: PALETTE[ci], css: CSS_PAL[ci], score: 0, alive: true, bot, pos: new V3(0, -100, 0), prev: new V3(0, -100, 0), vel: new V3(), yaw: 0, pitch: 0, onGround: true,
-    seen: false, snaps: [], model: null, anim: { phase: Math.random() * 6, amp: 0, dirF: 1, dirS: 0, air: 0 }, conn: null, lastHeard: performance.now(), respawn: 0, ai: null };
+    seen: false, snaps: [], delay: INTERP_MIN, jit: 0, lastSnap: 0, ip: null, ac: null, hist: [], deadAt: 0, model: null, anim: { phase: Math.random() * 6, amp: 0, dirF: 1, dirS: 0, air: 0 }, conn: null, lastHeard: performance.now(), respawn: 0, ai: null };
   players.set(id, p); return p;
 }
-function removePlayer(id) { const p = players.get(id); if (!p) return; if (p.model) disposeCharacter(p.model); players.delete(id); }
+function removePlayer(id) { muted.delete(id); const p = players.get(id); if (!p) return; clearTimeout(p.spawnT); if (p.model) disposeCharacter(p.model); players.delete(id); }
 function clearPlayers() { for (const id of [...players.keys()]) removePlayer(id); }
 function ensureModel(p) { if (!p.model && p.id !== myId) p.model = makeCharacter(p.color, p.name, p.css); }
 const roster = () => [...players.values()].map(p => ({ id: p.id, name: p.name, score: p.score, alive: p.alive, bot: p.bot }));
@@ -937,6 +1155,8 @@ function setSoftCapture(on) { softCapture = on; canvas.style.cursor = on ? 'none
 function releaseMouse() { if (locked()) document.exitPointerLock(); if (softCapture) setSoftCapture(false); }
 
 addEventListener('keydown', e => {
+  if (document.activeElement === $('chatIn')) return;            // typing a chat message
+  if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !e.repeat && chatAllowed()) { e.preventDefault(); openChat(); return; }
   if (softCapture && e.code === 'Escape') { setSoftCapture(false); return; }
   if (!captured()) return;
   const code = KEY_ALIAS[e.code] || e.code;
@@ -1090,7 +1310,7 @@ function showShot(id, a, b, mine = false) {
 function registerKill(k, v) {
   const K = players.get(k), V = players.get(v);
   if (appState !== 'playing' || !K || !V || !K.alive || !V.alive || k === v) return;
-  K.score++; V.alive = false;
+  K.score++; V.alive = false; V.deadAt = performance.now();
   const sc = [...players.values()].map(p => [p.id, p.score]);
   broadcast({ t: 'kill', k, v, sc }); applyKill(k, v);
   if (K.score >= fragLimit) { broadcast({ t: 'over', w: k, sc }); endMatch(k); }
@@ -1134,7 +1354,8 @@ function respawnLocal() {
 function startMatch(lateJoin = false) {
   appState = 'playing';
   const ids = [...players.keys()].sort((a, b) => a - b);
-  for (const p of players.values()) { if (!lateJoin) { p.score = 0; p.alive = true; } p.seen = false; p.snaps = []; p.pos.set(0, -100, 0); ensureModel(p); }
+  for (const p of players.values()) { if (!lateJoin) { p.score = 0; p.alive = true; p.deadAt = 0; } p.seen = false; p.snaps = []; p.pos.set(0, -100, 0); ensureModel(p); if (role === 'host' && p.id !== myId) AC.begin(p); }
+  countN = null; fpsT = 0; fpsN = 0; fpsBad = 0; fpsSkip = 5;
   buildViewGun(myRec().color);
   cooldown = 0.6; damageFx = 0; $('flash').style.opacity = 0; $('feed').textContent = '';
   if (lateJoin) respawnLocal(); else placeAtSpawn(ids.indexOf(myId) * 2 % SPAWNS.length);
@@ -1148,10 +1369,10 @@ function endMatch(w) {
   appState = 'over';
   const W = players.get(w), won = w === myId;
   $('overTitle').textContent = won ? 'VICTORY' : (W ? W.name + ' WINS' : 'MATCH OVER');
-  renderBoard($('overRows'));
+  playerRows($('overRows'), true);
   $('bAgain').style.display = $('bToLobby').style.display = isAuth() ? '' : 'none';
   $('bToLobby').style.display = role === 'host' ? '' : 'none';
-  $('overStatus').textContent = isAuth() ? '' : 'Waiting for the host…';
+  overLeft = OVER_SECONDS; countN = role === 'solo' ? null : OVER_SECONDS; renderOverStatus();
   (won ? sfx.win : sfx.lose)();
   releaseMouse(); updateOverlays();
 }
@@ -1210,28 +1431,40 @@ function updateBot(p, dt) {
    Networking: PeerJS, host as hub. Guests talk only to the host, which
    relays positions and shots and owns the score.
    ===================================================================== */
-let peer = null, hostConn = null, netTimer = null, pingTimer = null, joinTimer = null, lastHostHeard = 0, roomCode = '';
+let peer = null, hostConn = null, netTimer = null, pingTimer = null, joinTimer = null, retryTimer = null, flowTimer = null, lastHostHeard = 0, netTries = 0;
+let countN = null, overLeft = 0;      // lobby countdown / seconds left on the results screen
 const vec3 = a => Array.isArray(a) && a.length === 3 && a.every(Number.isFinite) ? a : null;
 function sendTo(c, m) { if (c && c.open) { try { c.send(m); } catch { } } }
 function sendHost(m) { sendTo(hostConn, m); }
 function broadcast(m, exceptId = -1) { if (role !== 'host') return; for (const p of players.values()) if (p.conn && p.id !== exceptId) sendTo(p.conn, m); }
 function closeNet() {
-  clearInterval(netTimer); clearInterval(pingTimer); clearTimeout(joinTimer);
+  clearInterval(netTimer); clearInterval(pingTimer); clearInterval(flowTimer); clearTimeout(joinTimer); clearTimeout(retryTimer); countN = null;
   const p = peer; peer = null; hostConn = null; ping = null;
   if (p) { try { p.destroy(); } catch { } }
 }
-function makeCode() { const abc = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; return Array.from(crypto.getRandomValues(new Uint8Array(6)), b => abc[b % abc.length]).join(''); }
 const myState = () => [myId, +me.pos.x.toFixed(3), +me.pos.y.toFixed(3), +me.pos.z.toFixed(3), +me.yaw.toFixed(4), +me.pitch.toFixed(4), me.onGround ? 1 : 0];
 
+// Play online: try to claim the lobby id. Free -> we host. Taken -> someone hosts it, so join them.
+function playOnline() { netTries = 0; lobbyN = 0; audioInit(); hostGame(); }
+function netRetry(next, why) {       // flip between host and join until one sticks (races, stale ids)
+  closeNet(); clearPlayers(); appState = 'menu'; role = null; showView('vMain'); updateOverlays();
+  if (++netTries > 8) return setStatus('Could not reach the lobby. Check your connection and try again.', true);
+  setStatus(why || 'Finding the lobby…');
+  retryTimer = setTimeout(next, 250 + Math.random() * 900);
+}
+function hostLost(why) {             // host left: everyone re-enters; one of the remaining players becomes the new host
+  if (appState === 'over' || appState === 'playing' || appState === 'lobby') { netTries = 0; netRetry(hostGame, why + ' Reconnecting…'); }
+  else quitToMenu(why, true);
+}
 function hostGame() {
-  closeNet(); clearPlayers(); audioInit();
-  role = 'host'; myId = 0; roomCode = makeCode();
-  setStatus('Contacting matchmaking server…');
-  const p = peer = new Peer(PEER_PREFIX + roomCode);
+  closeNet(); clearPlayers();
+  role = 'host'; myId = 0;
+  setStatus('Finding the lobby…');
+  const p = peer = new Peer(lobbyId());
   p.on('open', () => {
     if (peer !== p) return;
-    addPlayer(0, cleanName(myName)); appState = 'lobby'; renderLobby(); updateOverlays(); setStatus('');
-    netTimer = setInterval(hostTick, NET_RATE);
+    netTries = 0; addPlayer(0, cleanName(myName)); appState = 'lobby'; renderLobby(); updateOverlays(); setStatus('');
+    netTimer = setInterval(hostTick, NET_RATE); flowTimer = setInterval(hostFlow, 1000);
     pingTimer = setInterval(() => {
       const now = performance.now();
       for (const q of [...players.values()]) if (q.conn && now - q.lastHeard > PEER_TIMEOUT) dropPlayer(q.id);
@@ -1245,8 +1478,8 @@ function hostGame() {
   });
   p.on('error', err => {
     if (peer !== p) return;
-    if (err.type === 'unavailable-id') return hostGame();
-    if (appState === 'menu') setStatus('Network error: ' + (err.type || err.message), true);
+    if (err.type === 'unavailable-id') return netRetry(joinGame, 'Joining the lobby…');   // a host already exists
+    if (appState === 'menu') { closeNet(); setStatus('Network error: ' + (err.type || err.message), true); }
   });
   p.on('disconnected', () => { if (peer === p && !p.destroyed) { try { p.reconnect(); } catch { } } });
 }
@@ -1258,7 +1491,8 @@ function dropPlayer(id) {
 }
 function hostTick() {       // 30 Hz snapshot of everyone to everyone
   if (appState !== 'playing') return;
-  const s = [];
+  const s = [], me0 = myRec();
+  if (me0 && me0.alive) AC.remember(me0, me.pos.x, me.pos.y, me.pos.z, performance.now());
   for (const p of players.values()) {
     if (!p.alive) continue;
     if (p.id === myId) s.push(myState());
@@ -1269,71 +1503,250 @@ function hostTick() {       // 30 Hz snapshot of everyone to everyone
 function hostOnData(c, m) {
   if (!m || typeof m !== 'object') return;
   const now = performance.now();
-  if (m.t === 'hello') {
-    if (c._pid != null) return;
-    if (players.size >= MAX_PLAYERS) { sendTo(c, { t: 'full' }); setTimeout(() => { try { c.close(); } catch { } }, 300); return; }
-    let id = 1; while (players.has(id)) id++;
-    const np = addPlayer(id, cleanName(m.name)); np.conn = c; c._pid = id;
-    const playing = appState === 'playing'; if (playing) { np.alive = false; ensureModel(np); }
-    sendTo(c, { t: 'welcome', id, code: roomCode, roster: roster(), limit: fragLimit, playing });
-    broadcast({ t: 'roster', roster: roster() }, id); feedText(np.name + ' joined'); renderLobby(); updateScore();
+  if (m.t === 'hello') {             // look up the address first so kicked players can be refused
+    if (c._pid != null || c._hello) return; c._hello = true;
+    const pr = peer; remoteAddr(c).then(ip => { if (peer === pr && role === 'host') admit(c, m, ip); });
     return;
   }
-  const p = c._pid != null ? players.get(c._pid) : null; if (!p) return;
+  hostOnMsg(c, m, now);
+}
+function admit(c, m, ip) {
+  {
+    if (ip && bans[ip] > Date.now()) { sendTo(c, { t: 'banned' }); setTimeout(() => { try { c.close(); } catch { } }, 300); return; }
+    if (players.size >= MAX_PLAYERS) { sendTo(c, { t: 'full' }); setTimeout(() => { try { c.close(); } catch { } }, 300); return; }
+    let id = 1; while (players.has(id)) id++;
+    const np = addPlayer(id, cleanName(m.name)); np.conn = c; c._pid = id; np.ip = ip;
+    const playing = appState === 'playing'; if (playing) { np.alive = false; ensureModel(np); AC.begin(np); }
+    sendTo(c, { t: 'welcome', id, roster: roster(), limit: fragLimit, playing });
+    if (appState === 'lobby' && countN !== null) sendTo(c, { t: 'count', n: countN });
+    broadcast({ t: 'roster', roster: roster() }, id); feedText(np.name + ' joined'); renderLobby(); updateScore();
+  }
+}
+function hostOnMsg(c, m, now) {
+  const p = c._pid != null ? players.get(c._pid) : null; if (!p || p.kicked) return;
   p.lastHeard = now;
   switch (m.t) {
     case 's': {
       const a = m.s; if (!Array.isArray(a) || a.length !== 7 || !a.every(Number.isFinite)) return;
+      if (!p.alive || appState !== 'playing' || !AC.move(p, a[1], a[2], a[3], now)) return;
       p.last = [a[1], a[2], a[3], a[4], a[5], a[6]];
-      p.snaps.push({ t: now, p: [a[1], a[2], a[3]], y: a[4], x: a[5], g: a[6] }); if (p.snaps.length > 40) p.snaps.shift();
+      pushSnap(p, { t: now, p: [a[1], a[2], a[3]], y: a[4], x: a[5], g: a[6] }, now);
       break;
     }
     case 'fire': {
       const o = vec3(m.o), e = vec3(m.e); if (!o || !e || !p.alive || appState !== 'playing') return;
+      if (!AC.fire(p, now)) return;                              // faster than the weapon can fire: the shot does not exist
       broadcast({ t: 'fire', id: p.id, o, e }, p.id);
       showShot(p.id, new V3(...o), new V3(...e));
-      if (Number.isInteger(m.hit) && m.hit >= 0) registerKill(p.id, m.hit);
+      if (Number.isInteger(m.hit) && m.hit >= 0 && players.has(m.hit) && AC.hit(p, o, e, players.get(m.hit), now)) registerKill(p.id, m.hit);
       break;
     }
     case 'spawn': {
-      const q = vec3(m.p); if (!q || appState !== 'playing') return;
-      p.alive = true; p.snaps = [{ t: now - INTERP_DELAY, p: q, y: Math.atan2(q[0], q[2]), x: 0, g: 1 }]; p.last = [q[0], q[1], q[2], 0, 0, 1];
-      spawnColumn(new V3(...q), p.color);
-      broadcast({ t: 'spawn', id: p.id, p: q }, p.id);
+      const q = vec3(m.p); if (!q || appState !== 'playing' || p.alive) return;
+      const early = p.deadAt ? RESPAWN_TIME * 1000 - 150 - (now - p.deadAt) : 0;      // an honest client is never early (it waits after hearing of its death)
+      clearTimeout(p.spawnT);
+      if (early > 0) p.spawnT = setTimeout(() => { if (players.get(p.id) === p && !p.alive && appState === 'playing') hostSpawn(p, q); }, early);
+      else hostSpawn(p, q);
       break;
     }
     case 'ping': sendTo(c, { t: 'pong', ts: m.ts }); break;
+    case 'chat': {                   // relayed under the sender id the host knows; a claimed sender is never trusted
+      const x = cleanChat(m.x); if (!x || now - (p.chatAt || 0) < 700) return;
+      p.chatAt = now; chatLine(p, x); broadcast({ t: 'chat', id: p.id, x }, p.id); break;
+    }
   }
 }
 
-function joinGame(code) {
-  code = (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (code.length !== 6) return setStatus('Enter the 6-character code.', true);
-  closeNet(); clearPlayers(); audioInit();
-  role = 'guest'; roomCode = code; setStatus('Contacting matchmaking server…');
+function hostSpawn(p, q) {
+  const now = performance.now();
+  if (!AC.atSpawn(q)) { q = [SPAWNS[0][0], SPAWNS[0][1] + 0.01, SPAWNS[0][2]]; sendTo(p.conn, { t: 'fix', p: q }); }   // not a spawn point
+  p.alive = true; p.snaps = [{ t: now - p.delay, p: q, y: Math.atan2(q[0], q[2]), x: 0, g: 1 }]; p.last = [q[0], q[1], q[2], 0, 0, 1];
+  AC.respawn(p, q, now);
+  spawnColumn(new V3(...q), p.color);
+  broadcast({ t: 'spawn', id: p.id, p: q }, p.id);
+}
+
+/* ---- match flow run by the host: the lobby starts on its own once two players are in, and the results
+   screen returns to the lobby on its own, so an absent host never blocks anyone ---- */
+function hostFlow() {
+  if (role !== 'host') return;
+  if (appState === 'lobby') {
+    if (players.size >= 2) {
+      countN = countN === null ? LOBBY_COUNTDOWN : countN - 1;
+      if (countN <= 0) return hostStart();
+      broadcast({ t: 'count', n: countN }); renderLobby();
+    } else if (countN !== null) { countN = null; broadcast({ t: 'count', n: null }); renderLobby(); }
+  } else if (appState === 'over') {
+    if (--overLeft <= 0) return hostToLobby();
+    countN = overLeft; broadcast({ t: 'count', n: countN }); renderOverStatus();
+  }
+}
+function hostStart(lock = false) { if (!isAuth()) return; countN = null; broadcast({ t: 'start', limit: fragLimit }); startMatch(); if (lock) lockPointer(); }
+function hostToLobby() { if (role !== 'host') return; appState = 'lobby'; countN = null; broadcast({ t: 'lobby' }); renderLobby(); updateOverlays(); }
+
+/* ---- kick: the host removes a player and remembers the address they connected from (in this browser, for
+   BAN_HOURS) so they are refused if they come back. Addresses seen through a relay are never stored. ---- */
+function loadBans() { try { const b = JSON.parse(localStorage.getItem('ng-bans') || '{}'), now = Date.now(); for (const k in b) if (!(b[k] > now)) delete b[k]; return b; } catch { return {}; } }
+let bans = loadBans();
+const saveBans = () => { try { localStorage.setItem('ng-bans', JSON.stringify(bans)); } catch { } };
+async function remoteAddr(c) {
+  try {
+    for (let i = 0; i < 6; i++) {
+      const st = await c.peerConnection.getStats(); let pair = null;
+      st.forEach(r => { if (r.type === 'transport' && r.selectedCandidatePairId) pair = st.get(r.selectedCandidatePairId); });
+      if (!pair) st.forEach(r => { if (!pair && r.type === 'candidate-pair' && (r.selected || (r.nominated && r.state === 'succeeded'))) pair = r; });
+      const rc = pair && st.get(pair.remoteCandidateId);
+      if (rc) {
+        if (rc.candidateType === 'relay') return null;
+        let a = rc.address || rc.ip;           // browsers hide this for a same-network connection; the player's public address is then on another candidate
+        if (!a) st.forEach(r => { if (!a && r.type === 'remote-candidate' && (r.candidateType === 'srflx' || r.candidateType === 'prflx')) a = r.address || r.ip; });
+        return a ? String(a).slice(0, 80) : null;
+      }
+      await new Promise(r => setTimeout(r, 120));
+    }
+  } catch { }
+  return null;
+}
+function kickPlayer(id, why = 'by the host', ban = true) {
+  const q = players.get(id); if (role !== 'host' || !q || id === myId || q.bot || q.kicked) return;
+  q.kicked = true;
+  if (ban && q.ip) { bans[q.ip] = Date.now() + BAN_HOURS * 3600e3; saveBans(); }
+  sendTo(q.conn, { t: 'kicked', why });
+  const x = q.name + ' was kicked (' + why + ')'; sysLine(x); broadcast({ t: 'sys', x }, id);
+  setTimeout(() => { if (players.get(id) === q) dropPlayer(id); }, 250);
+}
+
+/* ---- anti-cheat, run by the host on what guests claim. Every limit is one an unmodified game cannot reach, with
+   slack for lag: updates travel on an ordered, loss-free channel, so even after a network stall every position
+   sample still arrives, in order. A broken rule first gets the claim rejected and the player set back to their
+   last good position; only several clear violations within a minute remove the player. ---- */
+const AC = (() => {
+  const HOVER_N = 45, AIR_MAX = 180, WIN = 90, TELEPORT = 8;
+  const Y_MAX = Math.max(...pads.map(p => p.y + p.vel.y * p.vel.y / (2 * MOVE.gravity)), ...SPAWNS.map(q => q[1])) + 3.5;
+  const OFFS = [[0, 0], [0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6], [0.6, 0.6], [0.6, -0.6], [-0.6, 0.6], [-0.6, -0.6]];
+  const log = [], _a = new V3(), _b = new V3();
+  const nearPad = (x, y, z) => pads.some(p => Math.hypot(x - p.x, z - p.z) < p.r + 2.5 && y > p.y - 0.6 && y < p.y + 3);
+  const atSpawn = q => SPAWNS.some(sp => Math.hypot(q[0] - sp[0], q[2] - sp[2]) < 0.6 && Math.abs(q[1] - sp[1]) < 0.6);
+  const nearSpawn = (x, y, z) => SPAWNS.some(sp => Math.hypot(x - sp[0], z - sp[2]) < 4 && Math.abs(y - sp[1]) < 4);
+  function ground(x, y, z) {                 // [standing on something, stuck inside something]
+    let sup = false, inside = false; const f = HALF + 0.05, g = HALF - 0.1;
+    for (const b of solids) {
+      if (x + f > b.min[0] && x - f < b.max[0] && z + f > b.min[2] && z - f < b.max[2]) { const d = y - b.max[1]; if (d > -0.05 && d < 0.3) sup = true; }
+      if (x + g > b.min[0] && x - g < b.max[0] && z + g > b.min[2] && z - g < b.max[2] && y + HEIGHT - 0.15 > b.min[1] && y + 0.15 < b.max[1]) inside = true;
+    }
+    return [sup, inside];
+  }
+  function rebase(p, exp) { const s = p.ac; s.base = false; s.exp = exp; s.last = null; s.wait = 0; s.ring = []; s.cum = 0; s.air = { n: 0, peak: 0, desc: false, low: 0, ys: [] }; if (exp) s.safe = exp.slice(); }
+  function begin(p) { p.ac = { strikes: [], tok: 2, tokAt: performance.now(), fireRej: [], safe: null }; p.hist = []; rebase(p, null); }
+  function respawn(p, q, now) { if (!p.ac) begin(p); rebase(p, q); remember(p, q[0], q[1], q[2], now); }
+  function remember(p, x, y, z, now) { const h = p.hist; h.push([now, x, y, z]); while (h.length > 1 && now - h[0][0] > 2600) h.shift(); }
+  function note(p, why) { log.push({ id: p.id, name: p.name, why, t: Date.now() }); if (log.length > 200) log.shift(); console.warn('[anti-cheat] ' + p.name + ': ' + why); }
+  function strike(p, why, now, fix = true) {
+    const s = p.ac; s.strikes.push(now); while (now - s.strikes[0] > 60000) s.strikes.shift();
+    note(p, why);
+    if (s.strikes.length >= 5) return kickPlayer(p.id, 'anti-cheat: ' + why, false);
+    if (!fix || !s.safe) return;
+    s.wait = now + 3000; s.last = null; s.ring = []; s.cum = 0; s.air.n = 0;
+    p.last = [s.safe[0], s.safe[1], s.safe[2], p.last ? p.last[3] : 0, p.last ? p.last[4] : 0, 1];
+    sendTo(p.conn, { t: 'fix', p: s.safe });
+  }
+  function move(p, x, y, z, now) {           // false = position rejected
+    const s = p.ac; if (!s) return true;
+    if (s.wait) {                            // a correction is on its way: nothing counts until the client has applied it
+      if (Math.hypot(x - s.safe[0], y - s.safe[1], z - s.safe[2]) < 3) s.wait = 0;
+      else { if (now > s.wait) strike(p, 'ignored a position correction', now); return false; }
+    }
+    if (!s.base) {                           // a life starts at a spawn point; anything else is a stale update and is dropped without penalty
+      if (!(s.exp ? Math.hypot(x - s.exp[0], y - s.exp[1], z - s.exp[2]) < 4 : nearSpawn(x, y, z))) return false;
+      s.base = true; s.safe = [x, y, z];
+    }
+    if (y < -2) { s.last = [x, y, z]; s.air.n = 0; return true; }      // fell out of the world: the game puts the player back at spawn 0
+    const L = s.last; let why = null;
+    if (L) {
+      const d = Math.hypot(x - L[0], z - L[2]);
+      if (L[1] < -2 && Math.hypot(x - SPAWNS[0][0], z - SPAWNS[0][2]) < 1) { s.ring = []; s.cum = 0; }
+      else { if (d > TELEPORT || Math.abs(y - L[1]) > 14) why = 'teleporting'; s.cum += d; }
+    }
+    s.ring.push([now, s.cum]); if (s.ring.length > WIN + 1) s.ring.shift();
+    if (!why && s.ring.length > WIN) {       // too fast only if it is too far for both the number of updates and the time they took to arrive
+      const dist = s.cum - s.ring[0][1];
+      if (dist > MOVE.maxSpeed * 1.25 * 3 && dist > MOVE.maxSpeed * 1.25 * ((now - s.ring[0][0]) / 1000 + 1)) why = 'moving faster than the game allows';
+    }
+    const [sup, inside] = ground(x, y, z), A = s.air;
+    if (!why && inside) why = 'inside a wall';
+    if (!why && y > Y_MAX) why = 'higher than any jump pad can reach';
+    if (sup || nearPad(x, y, z)) { A.n = 0; if (sup && !inside && !why) s.safe = [x, y, z]; }
+    else {
+      if (A.n === 0) { A.peak = y; A.desc = false; A.low = y; A.ys = []; }
+      A.n++; A.ys.push(y); if (A.ys.length > HOVER_N) A.ys.shift();
+      if (y > A.peak) A.peak = y;
+      if (!A.desc && A.peak - y > 0.4) { A.desc = true; A.low = y; }
+      if (A.desc) { if (y < A.low) A.low = y; else if (!why && y - A.low > 1) why = 'rising in mid-air'; }
+      if (!why && A.ys.length === HOVER_N && Math.max(...A.ys) - Math.min(...A.ys) < 0.5) why = 'hovering';
+      if (!why && A.n > AIR_MAX) why = 'airborne too long';
+    }
+    if (why) { strike(p, why, now); return false; }
+    s.last = [x, y, z]; remember(p, x, y, z, now); return true;
+  }
+  function fire(p, now) {                    // up to 3 shots may arrive together after a network stall; beyond that the rate is fixed
+    const s = p.ac; if (!s) return true;
+    s.tok = Math.min(3, s.tok + (now - s.tokAt) / (FIRE_COOLDOWN * 940)); s.tokAt = now;
+    if (s.tok >= 1) { s.tok -= 1; return true; }
+    s.fireRej.push(now); while (now - s.fireRej[0] > 20000) s.fireRej.shift();
+    if (s.fireRej.length === 1) note(p, 'firing faster than the weapon allows');
+    if (s.fireRej.length >= 12) kickPlayer(p.id, 'anti-cheat: firing faster than the weapon allows', false);
+    return false;
+  }
+  function hit(p, o, e, V, now) {            // is the claimed kill believable? false = no kill
+    const s = p.ac; if (!s || !p.last) return true;
+    const ex = p.last[0], ey = p.last[1] + EYE, ez = p.last[2];
+    const od = Math.hypot(o[0] - ex, o[1] - ey, o[2] - ez);      // the shot must start where the shooter is
+    if (od > 5) { if (od > 12) strike(p, 'shot fired from somewhere else', now, false); return false; }
+    let best = Infinity;                                          // the beam must end on the victim, where they were at some point in the last 2.5 s
+    const H = V.hist; for (let i = 0; i < H.length; i++) { const h = H[i]; if (now - h[0] < 2500 || i === H.length - 1) best = Math.min(best, Math.hypot(Math.max(0, Math.abs(e[0] - h[1]) - 0.45), Math.max(0, h[2] - e[1], e[1] - h[2] - 1.85), Math.max(0, Math.abs(e[2] - h[3]) - 0.45))); }
+    if (!H.length) return true;
+    if (best > 1.5) { if (best > 6) strike(p, 'claimed a hit nowhere near the target', now, false); return false; }
+    _b.set(e[0], e[1], e[2]);                                     // and no wall in between, seen from anywhere close to the shooter
+    for (const [dx, dz] of OFFS) for (const up of [0, -0.4]) {
+      _a.set(ex + dx, ey + up, ez + dz); const d = _b.clone().sub(_a), len = d.length();
+      if (len < 1.5 || rayWorld(_a, d.divideScalar(len), len) >= len - 0.6) return true;
+    }
+    _a.set(o[0], o[1], o[2]); { const d = _b.clone().sub(_a), len = d.length(); if (len < 1.5 || rayWorld(_a, d.divideScalar(len), len) >= len - 0.6) return true; }
+    return false;
+  }
+  return { begin, respawn, remember, move, fire, hit, atSpawn, log, Y_MAX };
+})();
+
+function joinGame() {
+  closeNet(); clearPlayers();
+  role = 'guest'; setStatus('Joining the lobby…');
   const p = peer = new Peer();
   p.on('open', () => {
     if (peer !== p) return;
     setStatus('Connecting to host…');
-    const c = hostConn = p.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
+    const c = hostConn = p.connect(lobbyId(), { reliable: true, serialization: 'json' });
     c.on('open', () => {
       if (hostConn !== c) return;
-      clearTimeout(joinTimer); lastHostHeard = performance.now();
+      netTries = 0; lastHostHeard = performance.now();     // the join timeout keeps running until the host actually answers
       sendHost({ t: 'hello', name: cleanName(myName) });
       pingTimer = setInterval(() => {
-        if (performance.now() - lastHostHeard > PEER_TIMEOUT) return quitToMenu('Lost connection to the host.', true);
+        if (appState !== 'menu' && performance.now() - lastHostHeard > PEER_TIMEOUT) return hostLost('Lost connection to the host.');
         sendHost({ t: 'ping', ts: performance.now() });
       }, 1000);
       netTimer = setInterval(() => { if (appState === 'playing' && myRec() && myRec().alive) sendHost({ t: 's', s: myState() }); }, NET_RATE);
     });
     c.on('data', m => { if (hostConn === c) guestOnData(m); });
-    c.on('close', () => { if (hostConn === c) quitToMenu('The host closed the lobby.', true); });
-    c.on('error', () => { if (hostConn === c) quitToMenu('Connection lost.', true); });
-    joinTimer = setTimeout(() => { if (peer === p && appState === 'menu') setStatus('Still trying… a direct connection may be blocked by a strict NAT or firewall.', true); }, 12000);
+    c.on('close', () => { if (hostConn === c) hostLost('The host left.'); });
+    c.on('error', () => { if (hostConn === c) hostLost('Connection lost.'); });
+    joinTimer = setTimeout(() => {   // the lobby id is taken but nobody answers (crashed host, or someone squatting the id): move on
+      if (peer !== p || appState !== 'menu') return;
+      if (lobbyN + 1 >= MAX_LOBBIES) { closeNet(); return setStatus('Could not reach any lobby. A direct connection may be blocked by your network.', true); }
+      lobbyN++; netTries = 0; netRetry(hostGame, 'Lobby ' + lobbyN + ' is not answering, trying lobby ' + (lobbyN + 1) + '…');
+    }, JOIN_TIMEOUT);
   });
   p.on('error', err => {
     if (peer !== p) return;
-    if (err.type === 'peer-unavailable') { closeNet(); return setStatus('No lobby found with code ' + code + '.', true); }
+    if (err.type === 'peer-unavailable') return netRetry(hostGame);   // host just left: try to take over
     if (appState === 'menu') setStatus('Network error: ' + (err.type || err.message), true);
   });
 }
@@ -1342,10 +1755,12 @@ function guestOnData(m) {
   if (!m || typeof m !== 'object') return;
   const now = lastHostHeard = performance.now();
   switch (m.t) {
-    case 'full': quitToMenu('That lobby is full.', true); break;
+    case 'full':                     // try the next lobby along
+      if (lobbyN + 1 >= MAX_LOBBIES) return quitToMenu('Every lobby is full.', true);
+      lobbyN++; netTries = 0; netRetry(hostGame, 'Lobby ' + lobbyN + ' is full, trying lobby ' + (lobbyN + 1) + '…'); break;
     case 'welcome':
       if (!Number.isInteger(m.id) || !Array.isArray(m.roster)) return;
-      myId = m.id; fragLimit = m.limit | 0 || 15; syncRoster(m.roster); setStatus('');
+      clearTimeout(joinTimer); myId = m.id; fragLimit = m.limit | 0 || 15; syncRoster(m.roster); setStatus('');
       if (m.playing) startMatch(true); else { appState = 'lobby'; renderLobby(); updateOverlays(); }
       break;
     case 'roster':
@@ -1355,23 +1770,31 @@ function guestOnData(m) {
       if (Number.isInteger(m.limit)) fragLimit = m.limit;
       renderLobby(); updateScore(); break;
     case 'start': if (Number.isInteger(m.limit)) fragLimit = m.limit; if (players.has(myId)) startMatch(); break;
-    case 'lobby': appState = 'lobby'; releaseMouse(); renderLobby(); updateOverlays(); break;
+    case 'lobby': appState = 'lobby'; countN = null; releaseMouse(); renderLobby(); updateOverlays(); break;
     case 'snap':
       if (!Array.isArray(m.s)) return;
       for (const a of m.s) {
         if (!Array.isArray(a) || a.length !== 7 || !a.every(Number.isFinite) || a[0] === myId) continue;
         const p = players.get(a[0]); if (!p) continue;
-        p.snaps.push({ t: now, p: [a[1], a[2], a[3]], y: a[4], x: a[5], g: a[6] }); if (p.snaps.length > 40) p.snaps.shift();
+        pushSnap(p, { t: now, p: [a[1], a[2], a[3]], y: a[4], x: a[5], g: a[6] }, now);
       }
       break;
     case 'fire': { const o = vec3(m.o), e = vec3(m.e); if (o && e && m.id !== myId) showShot(m.id, new V3(...o), new V3(...e)); break; }
     case 'kill': if (appState !== 'playing') return; applyScores(m.sc); applyKill(m.k, m.v); break;
     case 'spawn': {
       const q = vec3(m.p), p = players.get(m.id); if (!q || !p || m.id === myId) return;
-      p.alive = true; p.snaps = [{ t: now - INTERP_DELAY, p: q, y: Math.atan2(q[0], q[2]), x: 0, g: 1 }]; spawnColumn(new V3(...q), p.color); break;
+      p.alive = true; p.snaps = [{ t: now - p.delay, p: q, y: Math.atan2(q[0], q[2]), x: 0, g: 1 }]; spawnColumn(new V3(...q), p.color); break;
     }
     case 'over': applyScores(m.sc); endMatch(m.w); break;
+    case 'fix': { const q = vec3(m.p); if (q && appState === 'playing') { me.pos.fromArray(q); me.vel.set(0, 0, 0); me.stepOff = 0; } break; }   // host rejected my position
+    case 'count': countN = Number.isInteger(m.n) ? m.n : null; renderLobby(); renderOverStatus(); break;
+    case 'sys': { const x = cleanChat(m.x); if (x) sysLine(x); break; }
+    case 'kicked': quitToMenu('You were kicked' + (cleanChat(m.why) ? ' (' + cleanChat(m.why) + ')' : '') + '.', true); break;
+    case 'banned':                   // this host kicked me earlier: play somewhere else
+      if (lobbyN + 1 >= MAX_LOBBIES) return quitToMenu('No lobby available.', true);
+      lobbyN++; netTries = 0; netRetry(hostGame, 'You were kicked from lobby ' + lobbyN + ' earlier, trying lobby ' + (lobbyN + 1) + '…'); break;
     case 'pong': if (Number.isFinite(m.ts)) ping = Math.max(0, Math.round(now - m.ts)); break;
+    case 'chat': { const p = players.get(m.id), x = cleanChat(m.x); if (p && x && m.id !== myId) chatLine(p, x); break; }
   }
 }
 function startSolo() {
@@ -1383,10 +1806,24 @@ function startSolo() {
 }
 
 function lerpAngle(a, b, k) { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; else if (d < -Math.PI) d += Math.PI * 2; return a + d * k; }
+function pushSnap(p, snap, now) {
+  if (p.lastSnap) {                  // jitter = how far arrival gaps stray from the send rate; rises fast, settles slowly
+    const dev = Math.min(150, Math.abs(now - p.lastSnap - NET_RATE));
+    p.jit += (dev - p.jit) * (dev > p.jit ? 0.3 : 0.01);
+  }
+  // updates are sent at a steady 30 Hz but arrive unevenly: space their timestamps evenly (slowly tracking real arrival
+  // times) so movement is blended at a constant pace; the buffer above absorbs the difference
+  const prev = p.snaps[p.snaps.length - 1];
+  if (prev && now - prev.t < 300) { const exp = prev.t + NET_RATE; snap.t = Math.min(now + 60, Math.max(now - 150, exp + (now - exp) * 0.08)); }
+  p.lastSnap = now; p.snaps.push(snap); if (p.snaps.length > 40) p.snaps.shift();
+}
 function updateRemote(p, dt) {
   if (!p.bot) {
     if (!p.snaps.length) return;
-    const rt = performance.now() - INTERP_DELAY;
+    const target = Math.min(INTERP_MAX, Math.max(INTERP_MIN, 40 + 2.5 * p.jit));
+    p.delay += Math.max(-20 * dt, Math.min(150 * dt, target - p.delay));   // ease toward it so remote players never jump
+    const rt = performance.now() - p.delay;
+    if (rt > p.snaps[p.snaps.length - 1].t && performance.now() - p.lastSnap < 300) p.jit = Math.min(100, p.jit + 3);   // updates running late: widen the buffer (not when they stopped, e.g. dead)
     while (p.snaps.length > 2 && p.snaps[1].t <= rt) p.snaps.shift();
     const a = p.snaps[0], b = p.snaps[1];
     if (!b || rt <= a.t) { p.pos.fromArray(a.p); p.yaw = a.y; p.pitch = a.x; p.onGround = !!a.g; }
@@ -1428,7 +1865,31 @@ function renderBoard(el) {
     dot.className = 'dot'; dot.style.color = p.css; l.append(dot, p.name + (p.id === myId ? '  (you)' : '') + (p.bot ? '  [bot]' : '')); r.textContent = p.score; d.append(l, r); el.append(d);
   }
 }
+function playerRows(el, scores) {            // player list with Mute (everyone) and Kick (host) buttons
+  el.textContent = '';
+  for (const p of scores ? ranked() : [...players.values()].sort((a, b) => a.id - b.id)) {
+    const d = document.createElement('div'), l = document.createElement('span'), dot = document.createElement('i'), r = document.createElement('span');
+    dot.className = 'dot'; dot.style.color = p.css; l.append(dot, p.name + (p.id === myId ? '  (you)' : '') + (p.bot ? '  [bot]' : ''));
+    if (p.id !== myId && !p.bot && role !== 'solo') {
+      const mb = document.createElement('button'); mb.className = 'tiny' + (muted.has(p.id) ? ' on' : ''); mb.textContent = muted.has(p.id) ? 'Muted' : 'Mute';
+      mb.onclick = () => { if (muted.has(p.id)) muted.delete(p.id); else muted.add(p.id); renderLists(); }; r.append(mb);
+      if (role === 'host') { const kb = document.createElement('button'); kb.className = 'tiny kick'; kb.textContent = 'Kick'; kb.onclick = () => kickPlayer(p.id); r.append(kb); }
+    }
+    r.append(scores ? String(p.score) : (p.id === 0 ? 'HOST' : '')); d.append(l, r); el.append(d);
+  }
+}
+function renderLists() { renderLobby(); if (appState === 'over') playerRows($('overRows'), true); if (appState === 'playing' && role !== 'solo') playerRows($('pauseRows'), true); else $('pauseRows').textContent = ''; }
+function renderOverStatus() {
+  if (appState !== 'over') return;
+  $('overStatus').textContent = role === 'solo' ? '' : countN !== null ? 'Back to the lobby in ' + countN + ' s' : (role === 'host' ? '' : 'Waiting for the host…');
+}
+function sysLine(text) {
+  const d = document.createElement('div'); d.className = 'sys'; d.textContent = text;
+  const log = $('chatLog'); log.append(d); while (log.children.length > 8) log.firstChild.remove();
+  setTimeout(() => d.classList.add('old'), 9000);
+}
 function updateScore() {
+  if (appState !== 'lobby') renderLists();
   const r = myRec(); if (!r) return;
   const lead = ranked()[0];
   $('scMe').textContent = r.score; $('scLead').textContent = lead.score; $('leadName').textContent = lead.name; $('leadName').style.color = lead.css;
@@ -1436,65 +1897,101 @@ function updateScore() {
 }
 function renderLobby() {
   if (appState !== 'lobby') return;
-  $('code').textContent = roomCode;
-  const el = $('plist'); el.textContent = '';
-  for (const p of [...players.values()].sort((a, b) => a.id - b.id)) {
-    const d = document.createElement('div'), l = document.createElement('span'), dot = document.createElement('i'), r = document.createElement('span');
-    dot.className = 'dot'; dot.style.color = p.css; l.append(dot, p.name + (p.id === myId ? '  (you)' : '')); r.textContent = p.id === 0 ? 'HOST' : ''; d.append(l, r); el.append(d);
-  }
+  $('lobbyTitle').textContent = 'LOBBY ' + (lobbyN + 1);
+  playerRows($('plist'), false);
   const host = role === 'host';
   $('bStart').style.display = host ? '' : 'none'; $('selLimit').disabled = !host; $('selLimit').value = String(fragLimit);
-  $('lobbyStatus').textContent = host ? players.size + ' / ' + MAX_PLAYERS + ' players. Share the code, then start.' : 'Waiting for the host to start…';
+  $('lobbyStatus').textContent = countN !== null ? 'Match starts in ' + countN + ' s  ·  ' + players.size + ' / ' + MAX_PLAYERS + ' players'
+    : players.size < 2 ? 'Waiting for a second player. Anyone who presses Play online lands here.' : 'Starting soon…';
 }
+/* ---- chat: plain text only. Messages are cleaned on send, on relay and on receipt, and only ever
+   written into the page with textContent, so markup or script in a message shows up as literal text. ---- */
+const cleanChat = x => typeof x !== 'string' ? '' : x
+  .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, '')   // control, zero-width and text-direction characters
+  .replace(/\s+/g, ' ').trim().slice(0, 120);
+let chatSentAt = 0;
+const chatAllowed = () => appState === 'lobby' || appState === 'playing' || appState === 'over';
+function chatLine(p, text) {
+  if (muted.has(p.id)) return;
+  const d = document.createElement('div'), b = document.createElement('b');
+  b.textContent = p.name; b.style.color = p.css; d.append(b, document.createTextNode(text));
+  const log = $('chatLog'); log.append(d); while (log.children.length > 8) log.firstChild.remove();
+  setTimeout(() => d.classList.add('old'), 9000);
+  if (p.id !== myId) sfx.chat();
+}
+function openChat() { clearInput(); $('chat').classList.add('typing'); const i = $('chatIn'); i.value = ''; i.focus(); }
+function closeChat() { const i = $('chatIn'); i.value = ''; i.blur(); $('chat').classList.remove('typing'); }
+function sendChat(raw) {
+  const x = cleanChat(raw), now = performance.now();
+  if (!x || now - chatSentAt < 700) return; chatSentAt = now;
+  const r = myRec(); if (r) chatLine(r, x);
+  if (role === 'host') broadcast({ t: 'chat', id: myId, x }); else if (role === 'guest') sendHost({ t: 'chat', x });
+}
+$('chatIn').addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.code === 'Enter' || e.code === 'NumpadEnter') { e.preventDefault(); sendChat(e.target.value); closeChat(); }
+  else if (e.code === 'Escape') { e.preventDefault(); closeChat(); }
+});
+$('chatIn').addEventListener('keyup', e => e.stopPropagation());
+$('chatIn').addEventListener('blur', () => $('chat').classList.remove('typing'));
+
 function updateOverlays() {
+  $('chat').classList.toggle('on', chatAllowed()); if (!chatAllowed()) { closeChat(); $('chatLog').textContent = ''; }
   $('menu').classList.toggle('on', appState === 'menu');
   $('lobby').classList.toggle('on', appState === 'lobby');
   $('over').classList.toggle('on', appState === 'over');
   $('pause').classList.toggle('on', appState === 'playing' && !captured());
+  if (appState === 'playing' || appState === 'over') renderLists();
   $('hud').classList.toggle('on', appState === 'playing' || appState === 'over');
   $('softNote').style.display = softCapture && appState === 'playing' ? 'block' : 'none';
 }
 
 const nameEl = $('inName'); nameEl.value = myName;
 nameEl.oninput = () => { myName = nameEl.value; localStorage.setItem('ng-name', myName); };
-$('bHost').onclick = hostGame;
-$('bJoin').onclick = () => { audioInit(); showView('vJoin'); setStatus(''); $('inCode').focus(); };
+$('bPlay').onclick = playOnline;
 $('bOptions').onclick = () => { showView('vOptions'); setStatus(''); };
 $('bOptBack').onclick = () => showView('vMain');
 $('chkRain').checked = rainOn;
 $('chkRain').onchange = () => setRain($('chkRain').checked);
-$('bJoinBack').onclick = () => quitToMenu();
-$('bConnect').onclick = () => joinGame($('inCode').value);
-$('inCode').addEventListener('keydown', e => { if (e.key === 'Enter') joinGame($('inCode').value); });
+$('selMusic').value = musicTrack;
+$('selMusic').onchange = () => { audioInit(); setMusic($('selMusic').value); };
 $('bPractice').onclick = startSolo;
 $('bLeave').onclick = () => quitToMenu();
-$('bStart').onclick = () => { if (role !== 'host') return; broadcast({ t: 'start', limit: fragLimit }); startMatch(); lockPointer(); };
+$('bStart').onclick = () => { if (role === 'host') hostStart(true); };
 $('selLimit').onchange = () => { if (role !== 'host') return; fragLimit = parseInt($('selLimit').value, 10); broadcast({ t: 'roster', roster: roster(), limit: fragLimit }); };
-const copy = async (text, btn) => {
-  try { await navigator.clipboard.writeText(text); const o = btn.textContent; btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = o, 1200); }
-  catch { $('lobbyStatus').textContent = 'Could not copy. Select the code and copy it manually.'; }
-};
-$('bCopy').onclick = e => copy(roomCode, e.currentTarget);
-$('bCopyLink').onclick = e => copy(location.href.split('#')[0] + '#' + roomCode, e.currentTarget);
-if (!location.protocol.startsWith('http')) $('bCopyLink').style.display = 'none';
 $('bResume').onclick = lockPointer;
 $('bQuit').onclick = () => quitToMenu();
 $('bOverQuit').onclick = () => quitToMenu();
-$('bAgain').onclick = () => { if (!isAuth()) return; broadcast({ t: 'start', limit: fragLimit }); startMatch(); lockPointer(); };
-$('bToLobby').onclick = () => { if (role !== 'host') return; appState = 'lobby'; broadcast({ t: 'lobby' }); renderLobby(); updateOverlays(); };
+$('bAgain').onclick = () => hostStart(true);
+$('bToLobby').onclick = hostToLobby;
 const sensEl = $('sens'); sensEl.value = sens; $('sensV').textContent = sens.toFixed(2);
 sensEl.oninput = () => { sens = parseFloat(sensEl.value); $('sensV').textContent = sens.toFixed(2); localStorage.setItem('ng-sens', sens); };
 $('selQ').value = quality;
-$('selQ').onchange = () => { quality = $('selQ').value; localStorage.setItem('ng-quality', quality); buildComposer(); };
+$('selQ').onchange = () => { quality = $('selQ').value; localStorage.setItem('ng-quality', quality); buildComposer(); autoLow = false; };   // a manual choice is never overridden
+const banLabel = () => { const n = Object.keys(bans).length; $('bBans').textContent = 'Forget kicked players (' + n + ')'; $('bBans').style.display = n ? '' : 'none'; };
+$('bOptions').addEventListener('click', banLabel);
+$('bBans').onclick = () => { bans = {}; saveBans(); banLabel(); };
 addEventListener('pagehide', () => { closeNet(); });
-{ const h = location.hash.slice(1).toUpperCase(); if (/^[A-Z0-9]{6}$/.test(h)) { showView('vJoin'); $('inCode').value = h; history.replaceState(null, '', location.pathname + location.search); } }
 
 /* =====================================================================
    Main loop
    ===================================================================== */
 let last = performance.now(), menuT = 0;
+let autoLow = true, fpsT = 0, fpsN = 0, fpsBad = 0, fpsSkip = 5;      // switch to Low graphics if the frame rate stays low
+function watchFps(ms) {
+  if (!autoLow || quality !== 'high' || appState !== 'playing' || document.hidden || ms > 250) return;
+  if (fpsSkip > 0) { fpsSkip -= ms / 1000; return; }                  // ignore the first seconds of a match (shaders compiling)
+  fpsT += ms; fpsN++;
+  if (fpsT < 4000) return;
+  fpsBad = fpsN / (fpsT / 1000) < 40 ? fpsBad + 1 : 0; fpsT = 0; fpsN = 0;
+  if (fpsBad >= 2) {                                                   // 8 seconds in a row under 40 fps
+    autoLow = false; quality = 'low'; $('selQ').value = 'low'; localStorage.setItem('ng-quality', 'low'); buildComposer();
+    sysLine('Graphics set to Low for a smoother frame rate. You can change it in the pause menu (Esc).');
+  }
+}
 function frame(now) {
   requestAnimationFrame(frame);
+  watchFps(now - last);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   const t = now / 1000;
 
@@ -1558,7 +2055,7 @@ function frame(now) {
   // HUD
   if (inGame) {
     $('coolfill').style.width = (100 * (1 - cooldown / FIRE_COOLDOWN)) + '%';
-    $('info').textContent = role === 'solo' ? 'PRACTICE' : role === 'host' ? 'HOST · ' + roomCode + ' · ' + players.size + 'P' : 'P2P' + (ping === null ? '' : ' · ' + ping + ' MS');
+    $('info').textContent = role === 'solo' ? 'PRACTICE' : role === 'host' ? 'HOST · ' + players.size + 'P' : 'P2P' + (ping === null ? '' : ' · ' + ping + ' MS');
   }
   damageFx = Math.max(0, damageFx - dt * 0.7);
   gradePass.uniforms.uTime.value = t; gradePass.uniforms.uDamage.value = (myRec() && !myRec().alive && appState === 'playing') ? 0.55 : damageFx * 0.4;
@@ -1567,7 +2064,7 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // debug handle for console poking and automated checks
-window.NG = { me, players, solids, keys, tryFire, registerKill, physStep, get state() { return appState; }, get role() { return role; }, get myId() { return myId; }, get limit() { return fragLimit; }, get code() { return roomCode; }, renderer, scene, camera };
+window.NG = { AC, kickPlayer, get bans() { return bans; }, get lobby() { return lobbyN; }, get count() { return countN; }, get quality() { return quality; }, sendHost: m => sendHost(m), me, players, solids, keys, tryFire, registerKill, physStep, get state() { return appState; }, get role() { return role; }, get myId() { return myId; }, get limit() { return fragLimit; }, renderer, scene, camera };
 </script>
 </body>
 </html>
