@@ -125,6 +125,7 @@
     </div>
     <div class="view" id="vOptions">
       <label class="f"><input type="checkbox" id="chkRain"> Rain</label>
+      <label class="f fs"><input type="checkbox" class="chkFull"> Fullscreen</label>
       <label class="f">Music <select id="selMusic"><option value="b">Track 2 (new)</option><option value="a">Track 1 (first version)</option><option value="off">Off</option></select></label>
       <button class="ghost" id="bBans">Forget kicked players</button>
       <button class="ghost" id="bOptBack">Back</button>
@@ -150,6 +151,7 @@
     <div class="hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows move &nbsp; <kbd>R-Ctrl</kbd> / <kbd>Space</kbd> jump &nbsp; <kbd>LMB</kbd> fire<br>
       Double-tap a direction to dodge. Glowing pads launch you across the arena.<br>With WASD use Space to jump: Ctrl+W closes the browser tab.</div>
     <label class="f">Mouse <input type="range" id="sens" min="0.3" max="4" step="0.05"> <span id="sensV"></span></label>
+    <label class="f fs"><input type="checkbox" class="chkFull"> Fullscreen</label>
     <label class="f">Graphics <select id="selQ"><option value="high">High</option><option value="low">Low</option></select></label>
     <div class="rows" id="pauseRows"></div>
     <button id="bResume">Enter arena</button>
@@ -1948,14 +1950,14 @@ function updateOverlays() {
 
 const nameEl = $('inName'); nameEl.value = myName;
 nameEl.oninput = () => { myName = nameEl.value; localStorage.setItem('ng-name', myName); };
-$('bPlay').onclick = playOnline;
+$('bPlay').onclick = () => { autoFull(); playOnline(); };
 $('bOptions').onclick = () => { showView('vOptions'); setStatus(''); };
 $('bOptBack').onclick = () => showView('vMain');
 $('chkRain').checked = rainOn;
 $('chkRain').onchange = () => setRain($('chkRain').checked);
 $('selMusic').value = musicTrack;
 $('selMusic').onchange = () => { audioInit(); setMusic($('selMusic').value); };
-$('bPractice').onclick = startSolo;
+$('bPractice').onclick = () => { autoFull(); startSolo(); };
 $('bLeave').onclick = () => quitToMenu();
 $('bStart').onclick = () => { if (role === 'host') hostStart(true); };
 $('selLimit').onchange = () => { if (role !== 'host') return; fragLimit = parseInt($('selLimit').value, 10); broadcast({ t: 'roster', roster: roster(), limit: fragLimit }); };
@@ -1971,6 +1973,29 @@ $('selQ').onchange = () => { quality = $('selQ').value; localStorage.setItem('ng
 const banLabel = () => { const n = Object.keys(bans).length; $('bBans').textContent = 'Forget kicked players (' + n + ')'; $('bBans').style.display = n ? '' : 'none'; };
 $('bOptions').addEventListener('click', banLabel);
 $('bBans').onclick = () => { bans = {}; saveBans(); banLabel(); };
+// fullscreen: ticking the box goes fullscreen at once; the choice is remembered and re-applied when the next match is started
+// (browsers only allow it from a click). Leaving fullscreen with the browser's own keys unticks it again.
+let wantFull = localStorage.getItem('ng-full') === 'on';
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+const fsOK = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+function setFull(on) {
+  wantFull = on; localStorage.setItem('ng-full', on ? 'on' : 'off');
+  const root = document.documentElement;
+  try {
+    if (on && !fsEl()) { const r = (root.requestFullscreen || root.webkitRequestFullscreen).call(root); if (r && r.catch) r.catch(() => {}); }
+    else if (!on && fsEl()) { const r = (document.exitFullscreen || document.webkitExitFullscreen).call(document); if (r && r.catch) r.catch(() => {}); }
+  } catch { }
+  syncFull();
+}
+function syncFull() { for (const c of document.querySelectorAll('.chkFull')) c.checked = wantFull || !!fsEl(); }
+function autoFull() { if (wantFull && fsOK && !fsEl()) setFull(true); }
+for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(ev, () => {
+  if (!fsEl() && wantFull) { wantFull = false; localStorage.setItem('ng-full', 'off'); }
+  syncFull(); buildComposer();
+});
+for (const c of document.querySelectorAll('.chkFull')) c.onchange = () => setFull(c.checked);
+if (!fsOK) for (const l of document.querySelectorAll('.fs')) l.style.display = 'none';   // e.g. iPhone Safari has no fullscreen for pages
+syncFull();
 addEventListener('pagehide', () => { closeNet(); });
 
 /* =====================================================================

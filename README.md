@@ -54,7 +54,7 @@ A fast multiplayer arena shooter that runs in the browser. Every shot kills, fir
 - Neon cyberpunk look: wet asphalt with puddles, glowing signs in English and Japanese, a skyline with lit windows and optional rain (off by default, switch it on in Options).
 - Bloom, filmic tone mapping, colour grading, soft shadows, reflections and chromatic aberration.
 - A techno/metal soundtrack and all sound effects are synthesized live in the browser. Two tracks to choose from.
-- Options for rain, music and graphics quality. The game switches to low graphics by itself when the frame rate stays low.
+- Options for rain, music, fullscreen and graphics quality. Fullscreen can also be switched from the in-game menu. The game switches to low graphics by itself when the frame rate stays low.
 
 ## How it works
 
