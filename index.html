@@ -107,7 +107,7 @@
   <div id="info"></div>
   <div id="softNote">Limited mouse mode: this browser blocks mouse capture. Hold the cursor at a screen edge to keep turning · ESC for menu</div>
   <div id="board"><h2 style="font-size:18px">SCOREBOARD</h2><div class="rows" id="boardRows"></div></div>
-  <div id="keys">WASD / arrows move · R-CTRL or SPACE jump · double-tap to dodge · LMB fire · TAB scores · ENTER chat · ESC menu</div>
+  <div id="keys">WASD / arrows move · SPACE, RMB or R-CTRL jump · double-tap to dodge · LMB fire · TAB scores · ENTER chat · ESC menu</div>
 </div>
 
 <div id="chat"><div id="chatLog"></div><input type="text" id="chatIn" maxlength="120" placeholder="Say something · Enter to send · Esc to cancel" autocomplete="off" spellcheck="false"></div>
@@ -148,7 +148,7 @@
 <div class="overlay" id="pause">
   <div class="panel">
     <h2>CLICK TO PLAY</h2>
-    <div class="hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows move &nbsp; <kbd>R-Ctrl</kbd> / <kbd>Space</kbd> jump &nbsp; <kbd>LMB</kbd> fire<br>
+    <div class="hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows move &nbsp; <kbd>Space</kbd> / <kbd>RMB</kbd> / <kbd>R-Ctrl</kbd> jump &nbsp; <kbd>LMB</kbd> fire<br>
       Double-tap a direction to dodge. Glowing pads launch you across the arena.<br>With WASD use Space to jump: Ctrl+W closes the browser tab.</div>
     <label class="f">Mouse <input type="range" id="sens" min="0.3" max="4" step="0.05"> <span id="sensV"></span></label>
     <label class="f fs"><input type="checkbox" class="chkFull"> Fullscreen</label>
@@ -1178,7 +1178,8 @@ addEventListener('mousemove', e => {
   me.yaw -= e.movementX * 0.0022 * sens;
   me.pitch = Math.max(-1.55, Math.min(1.55, me.pitch - e.movementY * 0.0022 * sens));
 });
-canvas.addEventListener('mousedown', e => { if (e.button === 0 && captured()) firing = true; });
+canvas.addEventListener('mousedown', e => { if (!captured()) return; if (e.button === 0) firing = true; else if (e.button === 2) { e.preventDefault(); jumpPressed = true; } });
+canvas.addEventListener('contextmenu', e => e.preventDefault());   // right mouse button jumps
 addEventListener('mouseup', e => { if (e.button === 0) firing = false; });
 addEventListener('blur', () => { clearInput(); if (softCapture) setSoftCapture(false); });
 document.addEventListener('pointerlockchange', () => { if (!locked()) clearInput(); updateOverlays(); });

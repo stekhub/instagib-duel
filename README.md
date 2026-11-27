@@ -17,7 +17,7 @@ A fast multiplayer arena shooter that runs in the browser. Every shot kills, fir
 | WASD / arrow keys | Move |
 | Mouse | Aim |
 | Left mouse button | Fire |
-| Space / right Ctrl | Jump |
+| Space / right mouse button / right Ctrl | Jump |
 | Double-tap a direction | Dodge |
 | Tab | Scoreboard |
 | Enter | Chat |
